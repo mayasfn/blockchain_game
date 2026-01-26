@@ -1,26 +1,27 @@
-import tkinter as tk
+import customtkinter as ctk
 
 
-class MenuScreen(tk.Frame):
+class MenuScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
-        super().__init__(parent)
+        super().__init__(parent, corner_radius=20)
         self.controller = controller
-        
-        
-        tk.Label(self, text="First test").pack(pady=10)
-        
-        
-        tk.Button(self, text="Rejoindre une chambre",
-        command=lambda: controller.show_screen("WalletScreen")).pack()
-        
-        
-        tk.Button(self, text="Créer une chambre",
-        command=lambda: controller.show_screen("WalletScreen")).pack()
-        
-        
-        tk.Button(self, text="Random person",
-        command=lambda: controller.show_screen("WalletScreen")).pack()
-        
-        
-        tk.Button(self, text="I don’t have friends (Solo)",
-        command=lambda: controller.show_screen("GameScreen")).pack(pady=10)
+
+        ctk.CTkLabel(self, text="Guess", font=("Arial", 26, "bold")).pack(pady=(40, 5))
+
+        ctk.CTkLabel(self, text="Game", text_color="gray").pack(pady=(0, 30))
+
+        buttons = [
+            ("Rejoindre une chambre", "WalletScreen"),
+            ("Créer une chambre", "WalletScreen"),
+            ("Random person", "WalletScreen"),
+            ("I don’t have friends (Solo)", "GameScreen"),
+        ]
+
+        for text, screen in buttons:
+            ctk.CTkButton(
+                self,
+                text=text,
+                height=42,
+                corner_radius=12,
+                command=lambda s=screen: controller.show_screen(s),
+            ).pack(pady=6)

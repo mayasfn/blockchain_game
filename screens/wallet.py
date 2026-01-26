@@ -1,25 +1,31 @@
-import tkinter as tk
+import customtkinter as ctk
 
 
-class WalletScreen(tk.Frame):
+class WalletScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
-        super().__init__(parent)
+        super().__init__(parent, corner_radius=20)
         self.controller = controller
-        
-        
-        tk.Label(self, text="Wallet Address").pack(pady=5)
-        self.wallet_entry = tk.Entry(self)
-        self.wallet_entry.pack()
-        
-        
-        tk.Label(self, text="Private Key (optionnel)").pack(pady=5)
-        self.key_entry = tk.Entry(self, show="*")
-        self.key_entry.pack()
-        
-        
-        tk.Button(self, text="Continuer",
-        command=lambda: controller.show_screen("GameScreen")).pack(pady=10)
-        
-        
-        tk.Button(self, text="Retour menu",
-        command=lambda: controller.show_screen("MenuScreen")).pack()
+
+        ctk.CTkLabel(self, text="Wallet", font=("Arial", 22, "bold")).pack(
+            pady=(40, 20)
+        )
+
+        self.wallet = ctk.CTkEntry(self, placeholder_text="Wallet address", width=260)
+        self.wallet.pack(pady=10)
+
+        self.key = ctk.CTkEntry(
+            self, placeholder_text="Private key (optionnel)", show="*", width=260
+        )
+        self.key.pack(pady=10)
+
+        ctk.CTkButton(
+            self, text="Continuer", command=lambda: controller.show_screen("GameScreen")
+        ).pack(pady=15)
+
+        ctk.CTkButton(
+            self,
+            text="Retour menu",
+            fg_color="transparent",
+            text_color="gray",
+            command=lambda: controller.show_screen("MenuScreen"),
+        ).pack()
