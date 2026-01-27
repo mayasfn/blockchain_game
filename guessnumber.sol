@@ -8,6 +8,10 @@ contract GuessNumber {
         uint256[2] users;
         uint8 userCount;
         bool exists; //In Solidity, mappings always return a value, even if nothing was ever stored, so need to have a bool
+
+        uint256 lastGuess;      // Last number sent by user 2
+        uint8 lastFeedback;     // 0 = equal, 1 = bigger, 2 = smaller
+        uint256 round;          // Game round counter
     }
 
     // roomNumber => Room
@@ -69,5 +73,54 @@ contract GuessNumber {
         require(rooms[roomNumber].exists, "Room does not exist");
         delete rooms[roomNumber];
     }
+
+
+    /* =========================
+        USER 2 SENDS GUESS
+    ==========================*/
+    function setUser2Guess(uint256 roomNumber, uint256 guess) external {
+        Room storage room = rooms[roomNumber];
+
+        require(room.exists, "Room does not exist");
+        require(room.userCount == 2, "Room not ready");
+
+        room.lastGuess = guess;
+        room.round += 1;
+    }
+
+    /* =========================
+        GET USER 2 LAST GUESS
+    ==========================*/
+    function getUser2Guess(uint256 roomNumber)external view returns (uint256 guess, uint256 round)
+    {
+        Room storage room = rooms[roomNumber];
+        require(room.exists, "Room does not exist");
+
+        return (room.lastGuess, room.round);
+    }
+
+    /* =========================
+        USER 1 SENDS FEEDBACK
+    ==========================*/
+    function setUser1Feedback(uint256 roomNumber, uint8 feedback) external {
+        require(feedback <= 2, "Invalid feedback");
+
+        Room storage room = rooms[roomNumber];
+        require(room.exists, "Room does not exist");
+
+        room.lastFeedback = feedback;
+    }
+
+    /* =========================
+        GET USER 1 FEEDBACK
+    ==========================*/
+    function getUser1Feedback(uint256 roomNumber) external view returns (uint8 feedback, uint256 round)
+    {
+        Room storage room = rooms[roomNumber];
+        require(room.exists, "Room does not exist");
+
+        return (room.lastFeedback, room.round);
+    }
 }
+
 
