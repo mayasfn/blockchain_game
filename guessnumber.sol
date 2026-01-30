@@ -10,9 +10,10 @@ contract GuessNumber {
         bool exists; //In Solidity, mappings always return a value, even if nothing was ever stored, so need to have a bool
         uint8 connectedUserNumber;
 
-        uint256 lastGuess;      // Last number sent by user 2
-        uint8 lastFeedback;     // 0 = equal, 1 = bigger, 2 = smaller
-        uint256 round;          // Game round counter
+        uint256[] guesses;      // all user 2's guesses
+        uint8[] feedbacks;      // all user 1's feedbacks : 0 = equal, 1 = bigger, 2 = smaller
+
+        uint256 maxRounds;      // game limit (X turns)
     }
 
     // roomNumber => Room
@@ -37,14 +38,16 @@ contract GuessNumber {
     event GuessSent(uint256 roomNumber, uint256 guess, uint256 round);
     event FeedbackSent(uint256 roomNumber, uint8 feedback, uint256 round);
     event RoomDeleted(uint256 roomNumber);
+    event GameFinished(uint256 roomNumber, uint8 winner, bool user1Lied);
 
-    function createRoom(uint256 userId) external returns (uint256 roomNumber) {
+    function createRoom(uint256 userId, uint256 numberRounds) external returns (uint256 roomNumber) {
         roomNumber = getRoomNumber();
 
         Room storage room = rooms[roomNumber];
         room.users[0] = userId;
         room.userCount = 1;
         room.exists = true;
+        room.maxRounds = numberRounds;
 
         emit RoomCreated(roomNumber, userId);
         return roomNumber; // send room number to user
@@ -110,21 +113,10 @@ contract GuessNumber {
 
         require(room.exists, "Room does not exist");
         require(room.userCount == 2, "Room not ready");
+        require(room.guesses.length < room.maxRounds, "Max rounds reached");
 
-        room.lastGuess = guess;
-        room.round += 1;
-        emit GuessSent(roomNumber, guess, room.round);
-    }
-
-    /* =========================
-        GET USER 2 LAST GUESS
-    ==========================*/
-    function getUser2Guess(uint256 roomNumber)external view returns (uint256 guess, uint256 round)
-    {
-        Room storage room = rooms[roomNumber];
-        require(room.exists, "Room does not exist");
-        
-        return (room.lastGuess, room.round);
+        room.guesses.push(guess);
+        emit GuessSent(roomNumber, guess, room.guesses.length);
     }
 
     /* =========================
@@ -135,22 +127,41 @@ contract GuessNumber {
 
         Room storage room = rooms[roomNumber];
         require(room.exists, "Room does not exist");
+        require(room.feedbacks.length < room.guesses.length, "Feedback already sent");
 
-        room.lastFeedback = feedback;
+        room.feedbacks.push(feedback);
 
-        emit FeedbackSent(roomNumber, feedback, room.round);
+        emit FeedbackSent(roomNumber, feedback, room.feedbacks.length);
     }
 
-    /* =========================
-        GET USER 1 FEEDBACK
-    ==========================*/
-    function getUser1Feedback(uint256 roomNumber) external view returns (uint8 feedback, uint256 round)
-    {
+    function revealSecret(uint256 roomNumber, uint256 secret) external {
         Room storage room = rooms[roomNumber];
         require(room.exists, "Room does not exist");
+        require(room.guesses.length == room.maxRounds, "Game not finished");
+        require(room.feedbacks.length == room.guesses.length, "Missing feedback");
 
-        return (room.lastFeedback, room.round);
-    }
+        bool user1Lied = false;
+        bool user2Won = false;
+    
+        for (uint256 i = 0; i < room.guesses.length; i++) {
+            uint256 g = room.guesses[i];
+            uint8 f = room.feedbacks[i];
+    
+            if (g == secret) {
+                user2Won = true;
+                if (f != 0) user1Lied = true;
+                break;
+            }
+    
+            if (g < secret && f != 1) user1Lied = true;    
+            if (g > secret && f != 2) user1Lied = true;
+        }
+    
+        uint8 winner = (user1Lied || user2Won) ? 2 : 1;
+        emit GameFinished(roomNumber, winner, user1Lied);
+}
+
+
 }
 
 
