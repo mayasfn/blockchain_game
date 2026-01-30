@@ -1,12 +1,10 @@
 import customtkinter as ctk
-from blockchain.logic import GuessGame
 
 
 class GameScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, corner_radius=20)
         self.controller = controller
-        self.game = GuessGame()
 
         ctk.CTkLabel(self, text="Devine le nombre", font=("Arial", 22, "bold")).pack(
             pady=(40, 10)
