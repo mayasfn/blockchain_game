@@ -2,6 +2,9 @@ from web3 import Web3
 from eth_account import Account
 from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
 
+ROOM_GUESSES_INDEX = 3
+ROOM_FEEDBACKS_INDEX = 4
+
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
      #Web3 connection
@@ -84,13 +87,13 @@ class Web3Service:
     # -----------------------------
     # Contract interaction examples
     # -----------------------------
-    def create_room(self, user_id:int):
+    def create_room(self, user_id:int, number_rounds:int=3):
         if self.wallet_address is None:
             return False, "Wallet not connected"
     
         try:
             nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-            tx = self.contract.functions.createRoom(user_id).build_transaction({
+            tx = self.contract.functions.createRoom(user_id, number_rounds).build_transaction({
                 "from": self.wallet_address,
                 "nonce": nonce,
                 "gas": 200000,
@@ -201,19 +204,25 @@ class Web3Service:
         except Exception as e:
             return False, str(e)
 
-    def get_user2_guess(self):
+    def get_user2_last_guess(self):
         try:
-            guess, round_number = self.contract.functions.getUser2Guess(
-                self.room
-            ).call()
-    
+            room = self.contract.functions.rooms(self.room).call()
+
+            guesses = room[ROOM_GUESSES_INDEX]
+            if not guesses:
+                return False, "No guesses yet"
+
+            last_guess = guesses[-1]
+            round_number = len(guesses)
+
             return True, {
-                "guess": guess,
+                "guess": last_guess,
                 "round": round_number
             }
-    
+
         except Exception as e:
             return False, str(e)
+
             
     def set_user1_feedback(self, feedback: int):
         if self.wallet_address is None:
@@ -240,19 +249,25 @@ class Web3Service:
         except Exception as e:
             return False, str(e)
 
-    def get_user1_feedback(self):
+    def get_user1_last_feedback(self):
         try:
-            feedback, round_number = self.contract.functions.getUser1Feedback(
-                self.room
-            ).call()
-    
+            room = self.contract.functions.rooms(self.room).call()
+
+            feedbacks = room[ROOM_FEEDBACKS_INDEX]
+            if not feedbacks:
+                return False, "No feedback yet"
+
+            last_feedback = feedbacks[-1]
+            round_number = len(feedbacks)
+
             return True, {
-                "feedback": feedback,
+                "feedback": last_feedback,
                 "round": round_number
             }
-    
+
         except Exception as e:
             return False, str(e)
+
 
 
 
