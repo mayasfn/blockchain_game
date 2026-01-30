@@ -1,5 +1,4 @@
 import customtkinter as ctk
-from blockchain.logic import check_wallet_connection
 
 class WalletScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
@@ -29,18 +28,22 @@ class WalletScreen(ctk.CTkFrame):
             text_color="gray",
             command=lambda: controller.show_screen("MenuScreen"),
         ).pack()
+        
     def connect_wallet(self):
         wallet = self.wallet.get()
         key = self.key.get()
-    
-        success, message = check_wallet_connection(
-            wallet_address=wallet,
-            private_key=key,
-            rpc_url='https://ethereum-sepolia-rpc.publicnode.com'
-        )
-    
+        self.controller.web3_service.connect_wallet(wallet)
+        success, message = self.controller.web3_service.check_wallet_connection(key)
+
         if success:
             print(message)
+            balance = self.controller.web3_service.get_balance_eth()
+
+            game_screen = self.controller.screens["GameScreen"]
+            game_screen.update_wallet_info(
+                balance_eth=str(balance),
+                game_price_eth="0.01"
+            )
             self.controller.show_screen("GameScreen")
         else:
             print("Error:", message)
