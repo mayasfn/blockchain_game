@@ -291,8 +291,27 @@ class Web3Service:
         except Exception as e:
             return False, str(e)
 
+    def reveal_secret(self, secret: int):
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
 
+            tx = self.contract.functions.revealSecret(
+                self.room,
+                secret
+            ).build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "gas": 300000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
 
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
+            return True, tx_hash.hex()
+
+        except Exception as e:
+            return False, str(e)
 
 
