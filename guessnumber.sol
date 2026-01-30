@@ -31,6 +31,12 @@ contract GuessNumber {
     /* =========================
         CREATE ROOM
     ==========================*/
+    event RoomCreated(uint256 roomNumber, uint256 userId);
+    event UserConnected(uint256 roomNumber, uint256 userId, uint256 status);
+    event GuessSent(uint256 roomNumber, uint256 guess, uint256 round);
+    event FeedbackSent(uint256 roomNumber, uint8 feedback, uint256 round);
+    event RoomDeleted(uint256 roomNumber);
+
     function createRoom(uint256 userId) external returns (uint256 roomNumber) {
         roomNumber = getRoomNumber();
 
@@ -39,6 +45,7 @@ contract GuessNumber {
         room.userCount = 1;
         room.exists = true;
 
+        emit RoomCreated(roomNumber, userId);
         return roomNumber; // send room number to user
     }
 
@@ -50,16 +57,19 @@ contract GuessNumber {
         Room storage room = rooms[roomNumber];
 
         if (!room.exists) {
+            emit UserConnected(roomNumber, userId, 103);
             return 103;
         }
 
         if (room.userCount == 1) {
             room.users[room.userCount] = userId;
             room.userCount += 1;
+            emit UserConnected(roomNumber, userId, 101);
             return 101;
         }
 
         if (room.userCount >= 2) {
+            emit UserConnected(roomNumber, userId, 102);
             return 102;
         }
 
@@ -72,6 +82,7 @@ contract GuessNumber {
     function deleteRoom(uint256 roomNumber) external {
         require(rooms[roomNumber].exists, "Room does not exist");
         delete rooms[roomNumber];
+        emit RoomDeleted(roomNumber);
     }
 
 
@@ -86,6 +97,7 @@ contract GuessNumber {
 
         room.lastGuess = guess;
         room.round += 1;
+        emit GuessSent(roomNumber, guess, room.round);
     }
 
     /* =========================
@@ -95,7 +107,7 @@ contract GuessNumber {
     {
         Room storage room = rooms[roomNumber];
         require(room.exists, "Room does not exist");
-
+        
         return (room.lastGuess, room.round);
     }
 
@@ -109,6 +121,8 @@ contract GuessNumber {
         require(room.exists, "Room does not exist");
 
         room.lastFeedback = feedback;
+
+        emit FeedbackSent(roomNumber, feedback, room.round);
     }
 
     /* =========================
