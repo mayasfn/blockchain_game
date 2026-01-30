@@ -3,10 +3,29 @@ from web3 import Web3
 RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com'
 
 CONTRACT_ADDRESS = Web3.to_checksum_address(
-    "0x2698dAD70D4Ff6Bfec72340BB98C36024A1D5a8A"
+    "0xc1fC8376532B79d0e08E5f6d24c8ADC7c6D410ea"
 )
 
 CONTRACT_ABI = [
+	{
+		"anonymous": False,
+		"inputs": [
+			{
+				"indexed": True,
+				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"indexed": True,
+				"internalType": "uint256",
+				"name": "userId",
+				"type": "uint256"
+			}
+		],
+		"name": "RoomCreated",
+		"type": "event"
+	},
 	{
 		"inputs": [
 			{
@@ -187,4 +206,3 @@ CONTRACT_ABI = [
 		"type": "function"
 	}
 ]
-

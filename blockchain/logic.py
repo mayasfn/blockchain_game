@@ -61,22 +61,32 @@ class Web3Service:
     # -----------------------------
     # Contract interaction examples
     # -----------------------------
-    def get_room_number(self):
+    def create_room(self):
         if self.wallet_address is None:
             return False, "Wallet not connected"
-
+    
         try:
             nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-            tx = self.contract.functions.createRoom(self.wallet_address).build_transaction({
+            tx = self.contract.functions.createRoom(111).build_transaction({
                 "from": self.wallet_address,
                 "nonce": nonce,
                 "gas": 200000,
                 "gasPrice": self.web3.to_wei("20", "gwei")
             })
-            signed_tx = self.web3.eth.account.sign_transaction(tx, private_key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key )
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            return True, f"Room created! Tx hash: {tx_hash.hex()}"
+    
+            # Extract the event from the receipt
+            events = self.contract.events.RoomCreated().process_receipt(receipt)
+            if events:
+                room_number = events[0]["args"]["roomNumber"]
+                return True, f"Room created! Number: {room_number}, Tx hash: {tx_hash.hex()}"
+            else:
+                return False, f"Room created but no event found. Tx hash: {tx_hash.hex()}"
+    
         except Exception as e:
             return False, str(e)
         
