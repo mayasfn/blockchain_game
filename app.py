@@ -3,7 +3,7 @@ from screens.menu import MenuScreen
 from screens.game import GameScreen
 from screens.wallet import WalletScreen
 from screens.user1 import SetNumberScreen
-from screens user2 import GuessScreen
+from screens.user2 import GuessScreen
 from blockchain.logic import Web3Service
 
 ctk.set_appearance_mode("dark")

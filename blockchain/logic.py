@@ -1,6 +1,6 @@
 from web3 import Web3
 from eth_account import Account
-from config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
+from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
 
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
