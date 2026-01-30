@@ -17,6 +17,8 @@ class Web3Service:
         # Contract setup imported from config
         self.contract_address = CONTRACT_ADDRESS
         self.contract_abi = CONTRACT_ABI
+        self.room_creation_block = None
+
 
         self.contract = self.web3.eth.contract(
             address=self.contract_address,
@@ -104,7 +106,9 @@ class Web3Service:
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
     
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-    
+            self.room_creation_block = receipt.blockNumber
+
+
             # Extract the event from the receipt
             events = self.contract.events.RoomCreated().process_receipt(receipt)
             if events:
@@ -267,6 +271,26 @@ class Web3Service:
 
         except Exception as e:
             return False, str(e)
+
+    def get_game_result(self):
+        try:
+            events = self.contract.events.GameFinished().get_logs(
+                fromBlock=self.room_creation_block,
+                toBlock="latest"
+            )
+
+            for e in events[::-1]:
+                if e["args"]["roomNumber"] == self.room:
+                    return True, {
+                        "winner": e["args"]["winner"],
+                        "user1Lied": e["args"]["user1Lied"]
+                    }
+
+            return False, "No game result yet"
+
+        except Exception as e:
+            return False, str(e)
+
 
 
 
