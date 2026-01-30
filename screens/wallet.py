@@ -17,6 +17,11 @@ class WalletScreen(ctk.CTkFrame):
         )
         self.key.pack(pady=10)
 
+        self.info_label = ctk.CTkLabel(
+            self, text=""
+        )
+        self.info_label.pack(anchor="w", padx=10, pady=5)
+
         ctk.CTkButton(
             self, text="Continuer", command=self.connect_wallet
         ).pack(pady=15)
@@ -32,7 +37,7 @@ class WalletScreen(ctk.CTkFrame):
     def connect_wallet(self):
         wallet = self.wallet.get()
         key = self.key.get()
-        self.controller.web3_service.connect_wallet(wallet)
+        message = self.controller.web3_service.connect_wallet(wallet)
         success, message = self.controller.web3_service.check_wallet_connection(key)
 
         if success:
@@ -46,4 +51,9 @@ class WalletScreen(ctk.CTkFrame):
             )
             self.controller.show_screen("GameScreen")
         else:
+            self.update_info(message)
             print("Error:", message)
+
+    def update_info(self, message: str):
+        self.info_label.configure(text=message)
+

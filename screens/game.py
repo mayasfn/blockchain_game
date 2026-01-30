@@ -61,6 +61,7 @@ class GameScreen(ctk.CTkFrame):
     # ----------------------------
 
     def guess_number(self):
+        
         self.controller.show_screen("GuessScreen")
 
     def set_number(self):
