@@ -3,7 +3,7 @@ from web3 import Web3
 RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com'
 
 CONTRACT_ADDRESS = Web3.to_checksum_address(
-    "0xc1fC8376532B79d0e08E5f6d24c8ADC7c6D410ea"
+    "0xF625CD96CC6d87FcE8236f3d461054Cf34F132F5"
 )
 
 CONTRACT_ABI = [
@@ -11,19 +11,107 @@ CONTRACT_ABI = [
 		"anonymous": False,
 		"inputs": [
 			{
-				"indexed": True,
+				"indexed": False,
 				"internalType": "uint256",
 				"name": "roomNumber",
 				"type": "uint256"
 			},
 			{
-				"indexed": True,
+				"indexed": False,
+				"internalType": "uint8",
+				"name": "feedback",
+				"type": "uint8"
+			},
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "round",
+				"type": "uint256"
+			}
+		],
+		"name": "FeedbackSent",
+		"type": "event"
+	},
+	{
+		"anonymous": False,
+		"inputs": [
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "guess",
+				"type": "uint256"
+			},
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "round",
+				"type": "uint256"
+			}
+		],
+		"name": "GuessSent",
+		"type": "event"
+	},
+	{
+		"anonymous": False,
+		"inputs": [
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"indexed": False,
 				"internalType": "uint256",
 				"name": "userId",
 				"type": "uint256"
 			}
 		],
 		"name": "RoomCreated",
+		"type": "event"
+	},
+	{
+		"anonymous": False,
+		"inputs": [
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			}
+		],
+		"name": "RoomDeleted",
+		"type": "event"
+	},
+	{
+		"anonymous": False,
+		"inputs": [
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "userId",
+				"type": "uint256"
+			},
+			{
+				"indexed": False,
+				"internalType": "uint256",
+				"name": "status",
+				"type": "uint256"
+			}
+		],
+		"name": "UserConnected",
 		"type": "event"
 	},
 	{

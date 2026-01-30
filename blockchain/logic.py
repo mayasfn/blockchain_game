@@ -61,13 +61,13 @@ class Web3Service:
     # -----------------------------
     # Contract interaction examples
     # -----------------------------
-    def create_room(self):
+    def create_room(self, user_id:int):
         if self.wallet_address is None:
             return False, "Wallet not connected"
     
         try:
             nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-            tx = self.contract.functions.createRoom(111).build_transaction({
+            tx = self.contract.functions.createRoom(user_id).build_transaction({
                 "from": self.wallet_address,
                 "nonce": nonce,
                 "gas": 200000,
@@ -82,13 +82,140 @@ class Web3Service:
             # Extract the event from the receipt
             events = self.contract.events.RoomCreated().process_receipt(receipt)
             if events:
-                room_number = events[0]["args"]["roomNumber"]
-                return True, f"Room created! Number: {room_number}, Tx hash: {tx_hash.hex()}"
+                self.room = events[0]["args"]["roomNumber"]
+                return True, f"Room created! Number: {self.room}, Tx hash: {tx_hash.hex()}"
             else:
                 return False, f"Room created but no event found. Tx hash: {tx_hash.hex()}"
     
         except Exception as e:
             return False, str(e)
-        
+            
+    def connect_to_room(self, user_id: int):
+        if self.wallet_address is None:
+            return False, "Wallet not connected"
+    
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+    
+            tx = self.contract.functions.connectToRoom(
+                user_id, self.room
+            ).build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "gas": 200000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
+    
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+    
+            return True, tx_hash.hex()
+    
+        except Exception as e:
+            return False, str(e)
+
+    def delete_room(self):
+        if self.wallet_address is None:
+            return False, "Wallet not connected"
+    
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+    
+            tx = self.contract.functions.deleteRoom(self.room).build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "gas": 150000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
+    
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+    
+            return True, tx_hash.hex()
+    
+        except Exception as e:
+            return False, str(e)
+
+    def set_user2_guess(self, guess: int):
+        if self.wallet_address is None:
+            return False, "Wallet not connected"
+    
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+    
+            tx = self.contract.functions.setUser2Guess(
+                self.room, guess
+            ).build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "gas": 150000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
+    
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+    
+            return True, tx_hash.hex()
+    
+        except Exception as e:
+            return False, str(e)
+
+    def get_user2_guess(self):
+        try:
+            guess, round_number = self.contract.functions.getUser2Guess(
+                self.room
+            ).call()
+    
+            return True, {
+                "guess": guess,
+                "round": round_number
+            }
+    
+        except Exception as e:
+            return False, str(e)
+            
+    def set_user1_feedback(self, feedback: int):
+        if self.wallet_address is None:
+            return False, "Wallet not connected"
+    
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+    
+            tx = self.contract.functions.setUser1Feedback(
+                self.room, feedback
+            ).build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "gas": 150000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
+    
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+    
+            return True, tx_hash.hex()
+    
+        except Exception as e:
+            return False, str(e)
+
+    def get_user1_feedback(self):
+        try:
+            feedback, round_number = self.contract.functions.getUser1Feedback(
+                self.room
+            ).call()
+    
+            return True, {
+                "feedback": feedback,
+                "round": round_number
+            }
+    
+        except Exception as e:
+            return False, str(e)
+
+
 
 
