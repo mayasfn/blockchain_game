@@ -41,3 +41,46 @@ class SetNumberScreen(ctk.CTkFrame):
         # self.controller.game.set_user1_feedback(room_number, feedback)
 
         print(f"Room {room_number} | Secret: {secret_number} | Feedback: {feedback}")
+
+    def check_game_end(self):
+        room = self.controller.web3_service.contract.functions.rooms(
+            self.controller.web3_service.room
+        ).call()
+
+        guesses = room[3]
+        feedbacks = room[4]
+        max_rounds = room[5]
+
+        if len(feedbacks) == max_rounds and len(guesses) == max_rounds:
+            self.finish_game()
+
+    def finish_game(self):
+        secret = self.secret_entry.get()
+        if not secret.isdigit():
+            print("Invalid secret")
+            return
+
+        secret = int(secret)
+        success, msg = self.controller.web3_service.reveal_secret(secret)
+        if not success:
+            print("Reveal error:", msg)
+            return
+
+        success, result = self.controller.web3_service.get_game_result()
+        if not success:
+            print("Result not ready:", result)
+            return
+
+        winner = result["winner"]
+        lied = result["user1Lied"]
+
+        if winner == 2:
+            text = "User 2 won!"
+        else:
+            text = "User 1 won!"
+
+        if lied:
+            text += " (User 1 lied)"
+
+        print(text)
+
