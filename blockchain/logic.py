@@ -58,6 +58,29 @@ class Web3Service:
     # -----------------------------
     def set_player(self, player: int):
         self.player = player
+        if self.wallet_address is None:
+            return False, "Wallet not connected"
+    
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+    
+            tx = self.contract.functions.connectedUserNumber(
+                self.room, self.player
+            ).build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "gas": 150000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
+    
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+    
+            return True, tx_hash.hex()
+    
+        except Exception as e:
+            return False, str(e)
     # -----------------------------
     # Contract interaction examples
     # -----------------------------
@@ -108,12 +131,27 @@ class Web3Service:
     
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
     
-            return True, tx_hash.hex()
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+    
+            # Decode event
+            events = self.contract.events.UserConnected().process_receipt(receipt)
+    
+            if len(events) > 0:
+                status = events[0]["args"]["status"]
+    
+                if status == 101:
+                    self.player = 1
+                elif status == 102:
+                    self.player = 2
+    
+                return True, status
+    
+            return False, "No event found"
     
         except Exception as e:
             return False, str(e)
+
 
     def delete_room(self):
         if self.wallet_address is None:

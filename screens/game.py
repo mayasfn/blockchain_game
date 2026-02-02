@@ -61,10 +61,13 @@ class GameScreen(ctk.CTkFrame):
     # ----------------------------
 
     def guess_number(self):
-        
+        self.controller.web3_service.set_player(1)
+        self.controller.screens["GuessScreen"].set_room_number(self.controller.web3_service.room)
         self.controller.show_screen("GuessScreen")
 
     def set_number(self):
+        self.controller.web3_service.set_player(2)
+        self.controller.screens["SetNumberScreen"].set_room_number(self.controller.web3_service.room)
         self.controller.show_screen("SetNumberScreen")
 
     # ----------------------------

@@ -10,7 +10,7 @@ class WalletScreen(ctk.CTkFrame):
         self.wallet = ctk.CTkEntry(self, placeholder_text="Wallet address", width=260)
         self.wallet.pack(pady=10)
         self.key = ctk.CTkEntry(
-            self, placeholder_text="Private key (optionnel)", show="*", width=260
+            self, placeholder_text="Private key", show="*", width=260
         )
         self.key.pack(pady=10)
         
@@ -44,12 +44,25 @@ class WalletScreen(ctk.CTkFrame):
         if success:
             print(message)
             balance = self.controller.web3_service.get_balance_eth()
-            game_screen = self.controller.screens["GameScreen"]
-            game_screen.update_wallet_info(
-                balance_eth=str(balance),
-                game_price_eth="0.01"
-            )
-            self.controller.show_screen("GameScreen")
+            if self.controller.web3_service.room != 0:
+                room = self.room_entry.get()
+                self.controller.web3_service.room = int(room)
+                self.controller.web3_service.connect_to_room(123)
+                if self.controller.web3_service.player == 1:
+                    self.controller.screens["GuessScreen"].set_room_number(self.controller.web3_service.room)
+                    self.controller.show_screen("GuessScreen")
+                else:
+                    self.controller.screens["SetNumberScreen"].set_room_number(self.controller.web3_service.room)
+                    self.controller.show_screen("SetNumberScreen")
+                    
+            else:
+                self.controller.web3_service.create_room(321)
+                game_screen = self.controller.screens["GameScreen"]
+                game_screen.update_wallet_info(
+                    balance_eth=str(balance),
+                    game_price_eth="0.01"
+                )
+                self.controller.show_screen("GameScreen")
         else:
             self.update_info(message)
             print("Error:", message)

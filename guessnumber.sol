@@ -8,6 +8,7 @@ contract GuessNumber {
         uint256[2] users;
         uint8 userCount;
         bool exists; //In Solidity, mappings always return a value, even if nothing was ever stored, so need to have a bool
+        uint8 connectedUserNumber;
 
         uint256 lastGuess;      // Last number sent by user 2
         uint8 lastFeedback;     // 0 = equal, 1 = bigger, 2 = smaller
@@ -64,18 +65,33 @@ contract GuessNumber {
         if (room.userCount == 1) {
             room.users[room.userCount] = userId;
             room.userCount += 1;
-            emit UserConnected(roomNumber, userId, 101);
-            return 101;
+            if(room.connectedUserNumber ==1){
+                emit UserConnected(roomNumber, userId, 102);
+                return 102;
+            }
+            else{
+                emit UserConnected(roomNumber, userId, 101);
+                return 101;
+            }
+            
         }
 
         if (room.userCount >= 2) {
-            emit UserConnected(roomNumber, userId, 102);
-            return 102;
+            emit UserConnected(roomNumber, userId, 104);
+            return 104;
         }
 
         return 104;
     }
 
+    function connectedUserNumber(uint256 roomNumber, uint8 user) external {
+        Room storage room = rooms[roomNumber];
+
+        require(room.exists, "Room does not exist");
+        require(room.connectedUserNumber <= 2, "Invalid user status");
+
+        room.connectedUserNumber = user;
+    }
     /* =========================
         DELETE ROOM
     ==========================*/

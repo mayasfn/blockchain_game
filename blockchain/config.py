@@ -3,7 +3,7 @@ from web3 import Web3
 RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com'
 
 CONTRACT_ADDRESS = Web3.to_checksum_address(
-    "0xF625CD96CC6d87FcE8236f3d461054Cf34F132F5"
+    "0x5B10785A6D02a18678dd1A009FC1735346D71857"
 )
 
 CONTRACT_ABI = [
@@ -142,6 +142,24 @@ CONTRACT_ABI = [
 		"inputs": [
 			{
 				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint8",
+				"name": "user",
+				"type": "uint8"
+			}
+		],
+		"name": "connectedUserNumber",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
 				"name": "userId",
 				"type": "uint256"
 			}
@@ -237,6 +255,11 @@ CONTRACT_ABI = [
 				"internalType": "bool",
 				"name": "exists",
 				"type": "bool"
+			},
+			{
+				"internalType": "uint8",
+				"name": "connectedUserNumber",
+				"type": "uint8"
 			},
 			{
 				"internalType": "uint256",
