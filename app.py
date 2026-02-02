@@ -30,5 +30,12 @@ class App(ctk.CTk):
         self.show_screen("MenuScreen")
 
     def show_screen(self, name):
+        # Régénérer WalletScreen à chaque affichage
+        if name == "WalletScreen":
+            if "WalletScreen" in self.screens:
+                self.screens["WalletScreen"].destroy()
+            wallet_screen = WalletScreen(self.container, self)
+            self.screens["WalletScreen"] = wallet_screen
+            wallet_screen.place(relwidth=1, relheight=1)
+        
         self.screens[name].tkraise()
-
