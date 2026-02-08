@@ -5,15 +5,19 @@ contract GuessNumber {
 
     // Room structure (max 2 users)
     struct Room {
-        uint256[2] users;
-        uint8 userCount;
-        bool exists; //In Solidity, mappings always return a value, even if nothing was ever stored, so need to have a bool
-        uint8 connectedUserNumber;
+        address guess_player;
+        address feedback_player;
 
         uint256[] guesses;      // all user 2's guesses
         uint8[] feedbacks;      // all user 1's feedbacks : 0 = equal, 1 = bigger, 2 = smaller
 
+        uint8 userCount;
+        bool exists; //In Solidity, mappings always return a value, even if nothing was ever stored, so need to have a bool
+
+
         uint256 maxRounds;      // game limit (X turns)
+        uint256 entryFee;     // Amount of ETH staked
+        uint256 revealDeadline; // Time by which player1 MUST reveal --> todo a revoir 
     }
 
     // roomNumber => Room
@@ -38,7 +42,7 @@ contract GuessNumber {
     event GuessSent(uint256 roomNumber, uint256 guess, uint256 round);
     event FeedbackSent(uint256 roomNumber, uint8 feedback, uint256 round);
     event RoomDeleted(uint256 roomNumber);
-    event GameFinished(uint256 roomNumber, uint8 winner, bool user1Lied);
+    event GameFinished(uint256 roomNumber, address winner, bool user1Lied); // todo : you need to send if user 2 guessed properly or not and if he won just cause user 1 lied 
 
     function createRoom(uint256 userId, uint256 numberRounds) external returns (uint256 roomNumber) {
         roomNumber = getRoomNumber();
@@ -134,32 +138,64 @@ contract GuessNumber {
         emit FeedbackSent(roomNumber, feedback, room.feedbacks.length);
     }
 
+    /* ================================
+        END OF GAME VERIFICATIONS
+    =================================*/
+
+    // Map addresses to their pendingWithdrawals (The "Pull" Payout Ledger)
+    mapping(address => uint256) public pendingWithdrawals;
+
     function revealSecret(uint256 roomNumber, uint256 secret) external {
         Room storage room = rooms[roomNumber];
         require(room.exists, "Room does not exist");
         require(room.guesses.length == room.maxRounds, "Game not finished");
         require(room.feedbacks.length == room.guesses.length, "Missing feedback");
+        require(msg.sender == room.users[0], "Only player 1 can reveal");
 
         bool user1Lied = false;
         bool user2Won = false;
     
+        // all user 1's feedbacks : 0 = equal, 1 = bigger, 2 = smaller
         for (uint256 i = 0; i < room.guesses.length; i++) {
-            uint256 g = room.guesses[i];
-            uint8 f = room.feedbacks[i];
+            uint256 guess = room.guesses[i];
+            uint8 feedback = room.feedbacks[i];
     
-            if (g == secret) {
+            if (guess == secret) {
                 user2Won = true;
-                if (f != 0) user1Lied = true;
+                if (feedback != 0) user1Lied = true;
                 break;
             }
     
-            if (g < secret && f != 1) user1Lied = true;    
-            if (g > secret && f != 2) user1Lied = true;
+            if (guess < secret && feedback != 1) {user1Lied = true;  break;}  
+            if (gguess > secret && feedback != 2){ user1Lied = true;, break;}
         }
-    
-        uint8 winner = (user1Lied || user2Won) ? 2 : 1;
+
+        address winner = (user1Lied || user2Won) ? room.users[1] : room.users[0];
+        endingWithdrawals[winner] += room.entryFee; // TODO properly rewrite winnings
         emit GameFinished(roomNumber, winner, user1Lied);
-}
+    }
+
+    // The "Pull" function: Player calls this to get their fake ETH back to MetaMask
+
+    function withdrawpendingWithdrawals() external {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        require(amount > 0, "No funds to withdraw");
+        // Security: Reset balance BEFORE the transfer (prevents reentrancy)
+        pendingWithdrawals[msg.sender] = 0;
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Transfer failed");
+    }
+
+    // If Player 1 disappears, Player 2 calls this to win by default
+    function claimTimeout(uint256 roomNumber) external {
+        Room storage room = rooms[roomNumber];
+        require(block.timestamp > room.revealDeadline, "Wait for deadline");
+        require(msg.sender == room.player2, "Only player 2 can claim");
+
+        uint256 totalPot = room.entryFee * 2;
+        pendingWithdrawals[room.player2] += totalPot;
+        delete rooms[roomNumber];
+    }
 
 
 }
