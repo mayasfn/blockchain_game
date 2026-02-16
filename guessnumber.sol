@@ -7,7 +7,8 @@ contract GuessNumber {
     struct Room {
         address guess_player;
         address feedback_player;
-
+        uint8 connectedUserNumber;
+        bytes32 secretHash; // The locked-in secret
         uint256[] guesses;      // all user 2's guesses
         uint8[] feedbacks;      // all user 1's feedbacks : 0 = equal, 1 = bigger, 2 = smaller
 
@@ -34,62 +35,53 @@ contract GuessNumber {
         return currentRoomNumber;
     }
 
+    function getHash(uint256 _number) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_number));
+    }
     /* =========================
         CREATE ROOM
     ==========================*/
-    event RoomCreated(uint256 roomNumber, uint256 userId);
-    event UserConnected(uint256 roomNumber, uint256 userId, uint256 status);
+    event RoomCreated(uint256 roomNumber, address creator);
+    event UserConnected(uint256 roomNumber, address player, uint256 status);
     event GuessSent(uint256 roomNumber, uint256 guess, uint256 round);
     event FeedbackSent(uint256 roomNumber, uint8 feedback, uint256 round);
     event RoomDeleted(uint256 roomNumber);
-    event GameFinished(uint256 roomNumber, address winner, bool user1Lied); // todo : you need to send if user 2 guessed properly or not and if he won just cause user 1 lied 
+    event GameFinished(uint256 roomNumber, address winner, bool user1Lied);
 
-    function createRoom(uint256 userId, uint256 numberRounds) external returns (uint256 roomNumber) {
+    function createRoom(uint256 numberRounds, bytes32 _secretHash) external payable returns (uint256 roomNumber) {
+        require(msg.value > 0, "Entry fee required"); // Optional: enforce a bet
         roomNumber = getRoomNumber();
 
         Room storage room = rooms[roomNumber];
-        room.users[0] = userId;
+        room.secretHash = _secretHash;
+        room.feedback_player = msg.sender; // Set User 1
         room.userCount = 1;
         room.exists = true;
         room.maxRounds = numberRounds;
+        room.entryFee = msg.value; // Store the bet amount
 
-        emit RoomCreated(roomNumber, userId);
+        emit RoomCreated(roomNumber, msg.sender);
         return roomNumber; // send room number to user
     }
 
     /* =========================
         CONNECT TO ROOM
     ==========================*/
-    function connectToRoom(uint256 userId, uint256 roomNumber) external  returns (uint256 status)
-    {
-        Room storage room = rooms[roomNumber];
+    function connectToRoom(uint256 roomNumber) external payable returns (uint256 status) {
+            Room storage room = rooms[roomNumber];
 
-        if (!room.exists) {
-            emit UserConnected(roomNumber, userId, 103);
-            return 103;
+            if (!room.exists) return 103;
+            if (room.userCount >= 2) return 104;
+            require(msg.value == room.entryFee, "Must match entry fee");
+            require(msg.sender != room.feedback_player, "You cannot play against yourself");
+            room.guess_player = msg.sender;
+            room.userCount = 2;
+            // Set a 24-hour deadline from the moment player 2 joins
+            room.revealDeadline = block.timestamp + 24 hours;
+
+            emit UserConnected(roomNumber, msg.sender, 101);
+            return 101;
         }
-
-        if (room.userCount == 1) {
-            room.users[room.userCount] = userId;
-            room.userCount += 1;
-            if(room.connectedUserNumber ==1){
-                emit UserConnected(roomNumber, userId, 102);
-                return 102;
-            }
-            else{
-                emit UserConnected(roomNumber, userId, 101);
-                return 101;
-            }
-            
-        }
-
-        if (room.userCount >= 2) {
-            emit UserConnected(roomNumber, userId, 104);
-            return 104;
-        }
-
-        return 104;
-    }
 
     function connectedUserNumber(uint256 roomNumber, uint8 user) external {
         Room storage room = rooms[roomNumber];
@@ -116,7 +108,7 @@ contract GuessNumber {
         Room storage room = rooms[roomNumber];
 
         require(room.exists, "Room does not exist");
-        require(room.userCount == 2, "Room not ready");
+        require(msg.sender == room.guess_player, "Only guesser can play");
         require(room.guesses.length < room.maxRounds, "Max rounds reached");
 
         room.guesses.push(guess);
@@ -130,6 +122,7 @@ contract GuessNumber {
         require(feedback <= 2, "Invalid feedback");
 
         Room storage room = rooms[roomNumber];
+        require(msg.sender == room.feedback_player, "Only host can give feedback");
         require(room.exists, "Room does not exist");
         require(room.feedbacks.length < room.guesses.length, "Feedback already sent");
 
@@ -150,8 +143,8 @@ contract GuessNumber {
         require(room.exists, "Room does not exist");
         require(room.guesses.length == room.maxRounds, "Game not finished");
         require(room.feedbacks.length == room.guesses.length, "Missing feedback");
-        require(msg.sender == room.users[0], "Only player 1 can reveal");
-
+        require(msg.sender == room.feedback_player, "Only host can reveal");
+        require(keccak256(abi.encodePacked(secret)) == room.secretHash, "Revealed secret does not match hash!");
         bool user1Lied = false;
         bool user2Won = false;
     
@@ -167,37 +160,48 @@ contract GuessNumber {
             }
     
             if (guess < secret && feedback != 1) {user1Lied = true;  break;}  
-            if (gguess > secret && feedback != 2){ user1Lied = true;, break;}
+            if (guess > secret && feedback != 2){ user1Lied = true; break;}
         }
 
-        address winner = (user1Lied || user2Won) ? room.users[1] : room.users[0];
-        endingWithdrawals[winner] += room.entryFee; // TODO properly rewrite winnings
-        emit GameFinished(roomNumber, winner, user1Lied);
-    }
-
-    // The "Pull" function: Player calls this to get their fake ETH back to MetaMask
-
-    function withdrawpendingWithdrawals() external {
-        uint256 amount = pendingWithdrawals[msg.sender];
-        require(amount > 0, "No funds to withdraw");
-        // Security: Reset balance BEFORE the transfer (prevents reentrancy)
-        pendingWithdrawals[msg.sender] = 0;
-        (bool success, ) = payable(msg.sender).call{value: amount}("");
-        require(success, "Transfer failed");
-    }
-
-    // If Player 1 disappears, Player 2 calls this to win by default
-    function claimTimeout(uint256 roomNumber) external {
-        Room storage room = rooms[roomNumber];
-        require(block.timestamp > room.revealDeadline, "Wait for deadline");
-        require(msg.sender == room.player2, "Only player 2 can claim");
-
+        address winner = (user1Lied || user2Won) ? room.guess_player: room.feedback_player;
         uint256 totalPot = room.entryFee * 2;
-        pendingWithdrawals[room.player2] += totalPot;
+        pendingWithdrawals[winner] += totalPot;
+        emit GameFinished(roomNumber, winner, user1Lied);
         delete rooms[roomNumber];
     }
 
+    /* =========================
+        CLAIM TIMEOUT (Path 2)
+       - Called by User 2 if User 1 ghosts
+       - Sends money IMMEDIATELY (Push Pattern)
+    ==========================*/
+    function claimTimeout(uint256 roomNumber) external {
+        Room storage room = rooms[roomNumber];
+        require(room.exists, "Room does not exist");
+        require(block.timestamp > room.revealDeadline, "Wait for deadline");
+        require(msg.sender == room.guess_player, "Only player 2 can claim");
 
+        uint256 totalPot = room.entryFee * 2;
+        
+        // Security: Delete room FIRST to prevent re-entrancy
+        delete rooms[roomNumber];
+
+        // DIRECT SEND: No need to call withdraw
+        (bool success, ) = payable(msg.sender).call{value: totalPot}("");
+        require(success, "Transfer failed");
+    }
+    /* =========================
+        WITHDRAW WINNINGS
+       - Used by the winner of Path 1
+    ==========================*/
+    function withdrawWinnings() external {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        require(amount > 0, "No funds to withdraw");
+
+        // Security: Reset balance BEFORE transfer
+        pendingWithdrawals[msg.sender] = 0;
+
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Transfer failed");
+    }
 }
-
-
