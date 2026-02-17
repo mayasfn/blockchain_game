@@ -1,9 +1,12 @@
 from web3 import Web3
 from eth_account import Account
 from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
+from eth_abi import encode
+from eth_utils import keccak
 
-ROOM_GUESSES_INDEX = 3
-ROOM_FEEDBACKS_INDEX = 4
+ROOM_GUESSES_INDEX = 4
+ROOM_FEEDBACKS_INDEX = 5
+ENTRY_FREE_INDEX = 7
 
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
@@ -63,99 +66,86 @@ class Web3Service:
     # -----------------------------
     def set_player(self, player: int):
         self.player = player
-        if self.wallet_address is None:
-            return False, "Wallet not connected"
-    
-        try:
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-    
-            tx = self.contract.functions.connectedUserNumber(
-                self.room, self.player
-            ).build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "gas": 150000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
-    
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
-    
-            return True, tx_hash.hex()
-    
-        except Exception as e:
-            return False, str(e)
     # -----------------------------
     # Contract interaction examples
     # -----------------------------
-    def create_room(self, user_id:int, number_rounds:int=3):
-        if self.wallet_address is None:
+    def create_room(self, secret_number: int, number_rounds: int = 3, entry_fee_eth: float = 1.0):
+        if self.wallet_address is None or self.key is None:
             return False, "Wallet not connected"
-    
+        
         try:
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-            tx = self.contract.functions.createRoom(user_id, number_rounds).build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "gas": 200000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
-    
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key )
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-    
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            self.room_creation_block = receipt.blockNumber
+            #  Generate the hash (Matches Solidity getHash)
+            # Use abi.encodePacked equivalent: encode then hash
+            secret_hash = keccak(encode(['uint256'], [secret_number]))
 
+            ## convert eth to wei 
+            value_in_wei = self.web3.to_wei(entry_fee_eth, "ether")
 
-            # Extract the event from the receipt
-            events = self.contract.events.RoomCreated().process_receipt(receipt)
-            if events:
-                self.room = events[0]["args"]["roomNumber"]
-                return True, f"Room created! Number: {self.room}, Tx hash: {tx_hash.hex()}"
-            else:
-                return False, f"Room created but no event found. Tx hash: {tx_hash.hex()}"
-    
-        except Exception as e:
-            return False, str(e)
-            
-    def connect_to_room(self, user_id: int):
-        if self.wallet_address is None:
-            return False, "Wallet not connected"
-    
-        try:
             nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-    
-            tx = self.contract.functions.connectToRoom(
-                user_id, self.room
+            # Pass the hash to the contract
+            tx = self.contract.functions.createRoom(
+                number_rounds, 
+                secret_hash
             ).build_transaction({
                 "from": self.wallet_address,
                 "nonce": nonce,
-                "gas": 200000,
+                "value": value_in_wei,
+                "gas": 300000,
                 "gasPrice": self.web3.to_wei("20", "gwei")
             })
-    
+
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-    
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-    
-            # Decode event
-            events = self.contract.events.UserConnected().process_receipt(receipt)
-    
-            if len(events) > 0:
-                status = events[0]["args"]["status"]
-    
-                if status == 101:
-                    self.player = 1
-                elif status == 102:
-                    self.player = 2
-    
-                return True, status
-    
-            return False, "No event found"
-    
+            
+            self.room_creation_block = receipt.blockNumber
+            events = self.contract.events.RoomCreated().process_receipt(receipt)
+            
+            if events:
+                self.room = events[0]["args"]["roomNumber"]
+                return True, f"Room {self.room} created with {entry_fee_eth} ETH bet!"
+            return False, "Event not found"
+        
+        except Exception as e:
+            return False, str(e)
+            
+    def connect_to_room(self, room_id: int):
+        """User 2 must match the entry fee found in the room storage"""
+        try:
+            # Get room details to know the required entry fee
+            room_data = self.contract.functions.rooms(room_id).call()
+            entry_fee_wei = room_data[ENTRY_FREE_INDEX]
+            
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+            tx = self.contract.functions.connectToRoom(room_id).build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "value": entry_fee_wei, 
+                "gas": 250000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
+            
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.room = room_id
+            return True, tx_hash.hex()
+        except Exception as e:
+            return False, str(e)
+        
+    def withdraw_winnings(self):
+        """Call the new withdrawal function"""
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+            tx = self.contract.functions.withdrawWinnings().build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "gas": 100000,
+                "gasPrice": self.web3.to_wei("20", "gwei")
+            })
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            return True, tx_hash.hex()
         except Exception as e:
             return False, str(e)
 

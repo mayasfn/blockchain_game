@@ -33,23 +33,24 @@ class SetNumberScreen(ctk.CTkFrame):
         self.room_label.configure(text=f"Room: {room_number}")
 
     def send_feedback(self, feedback):
-        """Send feedback to smart contract or controller"""
-        room_number = self.room_label.cget("text").replace("Room: ", "")
-        secret_number = self.secret_entry.get()
-
-        # Here you can integrate with smart contract, e.g.
-        # self.controller.game.set_user1_feedback(room_number, feedback)
-
-        print(f"Room {room_number} | Secret: {secret_number} | Feedback: {feedback}")
+        """Send feedback to smart contract"""
+        success, tx_hash = self.controller.web3_service.set_user1_feedback(feedback)
+        
+        if success:
+            print(f"Feedback sent: {tx_hash}")
+            # Check if this was the last round to trigger reveal
+            self.check_game_end()
+        else:
+            print(f"Error: {tx_hash}")
 
     def check_game_end(self):
         room = self.controller.web3_service.contract.functions.rooms(
             self.controller.web3_service.room
         ).call()
 
-        guesses = room[3]
-        feedbacks = room[4]
-        max_rounds = room[5]
+        guesses = room[4]   # ROOM_GUESSES_INDEX
+        feedbacks = room[5] # ROOM_FEEDBACKS_INDEX
+        max_rounds = room[6] 
 
         if len(feedbacks) == max_rounds and len(guesses) == max_rounds:
             self.finish_game()
@@ -84,3 +85,14 @@ class SetNumberScreen(ctk.CTkFrame):
 
         print(text)
 
+    def create_room_action(self):
+        """Initial action to start the game as Host"""
+        secret = self.secret_entry.get()
+        if not secret.isdigit():
+            return
+        
+        # pass the integer secret to logic.py 
+        success, msg = self.controller.web3_service.create_room(int(secret), number_rounds=3)
+        if success:
+            self.set_room_number(self.controller.web3_service.room)
+            print(msg)

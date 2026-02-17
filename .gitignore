@@ -1,0 +1,4 @@
+venv/*
+__pycache__/*
+blockchain/__pycache__/*
+screens/__pycache__/*
