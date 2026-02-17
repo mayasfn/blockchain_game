@@ -1,3 +1,4 @@
+import os
 from web3 import Web3
 from eth_account import Account
 from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
@@ -6,7 +7,7 @@ from eth_utils import keccak
 
 ROOM_GUESSES_INDEX = 4
 ROOM_FEEDBACKS_INDEX = 5
-ENTRY_FEE_INDEX = 7
+ENTRY_FEE_INDEX = 9
 
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
@@ -136,7 +137,8 @@ class Web3Service:
                 return False, str(e)  
  
     def withdraw_winnings(self):
-        """Call the new withdrawal function"""
+        if self.wallet_address is None or self.key is None:
+            return False, "Wallet not connected"
         try:
             nonce = self.web3.eth.get_transaction_count(self.wallet_address)
             tx = self.contract.functions.withdrawWinnings().build_transaction({

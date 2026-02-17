@@ -3,7 +3,7 @@ from screens.menu import MenuScreen
 from screens.game import GameScreen
 from screens.wallet import WalletScreen
 from screens.host_screen import HostScreen
-from screens.guesser_screen import GuessScreen
+from screens.guesser_screen import GuesserScreen
 from blockchain.logic import Web3Service
 
 ctk.set_appearance_mode("dark")
@@ -22,7 +22,7 @@ class App(ctk.CTk):
         self.container.pack(fill="both", expand=True, padx=20, pady=20)
 
         self.screens = {}
-        for Screen in (MenuScreen, GameScreen, WalletScreen, HostScreen, GuessScreen):
+        for Screen in (MenuScreen, GameScreen, WalletScreen, HostScreen, GuesserScreen):
             screen = Screen(self.container, self)
             self.screens[Screen.__name__] = screen
             screen.place(relwidth=1, relheight=1)
