@@ -8,37 +8,23 @@ class MenuScreen(ctk.CTkFrame):
         ctk.CTkLabel(self, text="Guess", font=("Arial", 26, "bold")).pack(pady=(40, 5))
         ctk.CTkLabel(self, text="Game", text_color="gray").pack(pady=(0, 30))
 
-        ctk.CTkButton(
-            self,
-            text="Rejoindre une chambre",
-            height=42,
-            corner_radius=12,
-            command=self.join_room,
-        ).pack(pady=6)
+        buttons = [
+            ("Join a room", "WalletScreen"),
+            ("Create a room", "HostScreen"),
+            ("Random person", "WalletScreen"),
+            ("I don’t have friends (Solo)", "GameScreen"),
+        ]
 
-        ctk.CTkButton(
-            self,
-            text="Créer une chambre",
-            height=42,
-            corner_radius=12,
-            command=self.create_room,
-        ).pack(pady=6)
+        for text, screen_name in buttons:
+                    ctk.CTkButton(
+                        self,
+                        text=text,
+                        height=42,
+                        corner_radius=12,
+                        command=lambda s=screen_name, t=text: self.on_button_click(s, t)
+                    ).pack(pady=6)
 
-        ctk.CTkButton(
-            self,
-            text="I don’t have friends (Solo)",
-            height=42,
-            corner_radius=12,
-            command=self.solo_mode,
-        ).pack(pady=6)
-
-    def join_room(self):
-        self.controller.show_screen("WalletScreen")
-
-    def create_room(self):
-        self.controller.web3_service.room = 0
-        self.controller.show_screen("WalletScreen")
-
-    def solo_mode(self):
-        self.controller.web3_service.room = -1
-        self.controller.show_screen("WalletScreen")
+    def on_button_click(self, screen_name, button_text):
+        # Save the intent in the controller (App class)
+        self.controller.user_intent = button_text
+        self.controller.show_screen(screen_name)

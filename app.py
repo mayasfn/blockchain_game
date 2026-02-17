@@ -2,8 +2,8 @@ import customtkinter as ctk
 from screens.menu import MenuScreen
 from screens.game import GameScreen
 from screens.wallet import WalletScreen
-from screens.user1 import SetNumberScreen
-from screens.user2 import GuessScreen
+from screens.host_screen import HostScreen
+from screens.guesser_screen import GuessScreen
 from blockchain.logic import Web3Service
 
 ctk.set_appearance_mode("dark")
@@ -22,7 +22,7 @@ class App(ctk.CTk):
         self.container.pack(fill="both", expand=True, padx=20, pady=20)
 
         self.screens = {}
-        for Screen in (MenuScreen, GameScreen, WalletScreen, SetNumberScreen, GuessScreen):
+        for Screen in (MenuScreen, GameScreen, WalletScreen, HostScreen, GuessScreen):
             screen = Screen(self.container, self)
             self.screens[Screen.__name__] = screen
             screen.place(relwidth=1, relheight=1)
@@ -30,7 +30,6 @@ class App(ctk.CTk):
         self.show_screen("MenuScreen")
 
     def show_screen(self, name):
-        # Régénérer WalletScreen à chaque affichage
         if name == "WalletScreen":
             if "WalletScreen" in self.screens:
                 self.screens["WalletScreen"].destroy()

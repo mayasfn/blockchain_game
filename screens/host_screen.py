@@ -1,6 +1,6 @@
 import customtkinter as ctk
 
-class SetNumberScreen(ctk.CTkFrame):
+class HostScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, corner_radius=20)
         self.controller = controller
@@ -38,7 +38,6 @@ class SetNumberScreen(ctk.CTkFrame):
         
         if success:
             print(f"Feedback sent: {tx_hash}")
-            # Check if this was the last round to trigger reveal
             self.check_game_end()
         else:
             print(f"Error: {tx_hash}")

@@ -34,14 +34,14 @@ class GuessScreen(ctk.CTkFrame):
         """Update the feedback label (Smaller / Greater / Equal)"""
         self.feedback_label.configure(text=f"Feedback: {feedback_text}")
 
-def send_guess(self):
-        guess = self.guess_entry.get()
-        if not guess.isdigit():
-            return
-        success, tx_hash = self.controller.web3_service.set_user2_guess(int(guess))
-        
-        if success:
-            print(f"Guess sent: {tx_hash}")
-            #todo: refresh feedback here
-        else:
-            print(f"Error: {tx_hash}")
+    def send_guess(self):
+            guess = self.guess_entry.get()
+            if not guess.isdigit():
+                return
+            success, tx_hash = self.controller.web3_service.set_user2_guess(int(guess))
+            
+            if success:
+                print(f"Guess sent: {tx_hash}")
+                #todo: refresh feedback here
+            else:
+                print(f"Error: {tx_hash}")
