@@ -6,7 +6,7 @@ from eth_utils import keccak
 
 ROOM_GUESSES_INDEX = 4
 ROOM_FEEDBACKS_INDEX = 5
-ENTRY_FREE_INDEX = 7
+ENTRY_FEE_INDEX = 7
 
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
@@ -110,29 +110,31 @@ class Web3Service:
             return False, str(e)
             
     def connect_to_room(self, room_id: int):
-        """User 2 must match the entry fee found in the room storage"""
-        try:
-            # Get room details to know the required entry fee
-            room_data = self.contract.functions.rooms(room_id).call()
-            entry_fee_wei = room_data[ENTRY_FREE_INDEX]
-            
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-            tx = self.contract.functions.connectToRoom(room_id).build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "value": entry_fee_wei, 
-                "gas": 250000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
-            
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            self.room = room_id
-            return True, tx_hash.hex()
-        except Exception as e:
-            return False, str(e)
-        
+            if self.wallet_address is None or self.key is None:
+                return False, "Wallet not connected"
+
+            try:
+                room_data = self.contract.functions.rooms(room_id).call()
+                entry_fee_wei = room_data[ENTRY_FEE_INDEX] # Correctly using index 7
+
+                nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+                tx = self.contract.functions.connectToRoom(room_id).build_transaction({
+                    "from": self.wallet_address,
+                    "nonce": nonce,
+                    "value": entry_fee_wei, 
+                    "gas": 250000,
+                    "gasPrice": self.web3.to_wei("20", "gwei")
+                })
+
+                signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+                tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                self.web3.eth.wait_for_transaction_receipt(tx_hash)
+
+                self.room = room_id
+                return True, tx_hash.hex()
+            except Exception as e:
+                return False, str(e)  
+ 
     def withdraw_winnings(self):
         """Call the new withdrawal function"""
         try:
@@ -282,26 +284,27 @@ class Web3Service:
             return False, str(e)
 
     def reveal_secret(self, secret: int):
-        try:
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
+            if self.wallet_address is None or self.key is None:
+                return False, "Wallet not connected"
 
-            tx = self.contract.functions.revealSecret(
-                self.room,
-                secret
-            ).build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "gas": 300000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
+            try:
+                nonce = self.web3.eth.get_transaction_count(self.wallet_address)
 
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+                tx = self.contract.functions.revealSecret(
+                    self.room,
+                    secret
+                ).build_transaction({
+                    "from": self.wallet_address,
+                    "nonce": nonce,
+                    "gas": 300000,
+                    "gasPrice": self.web3.to_wei("20", "gwei")
+                })
 
-            return True, tx_hash.hex()
+                signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+                tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
-        except Exception as e:
-            return False, str(e)
+                return True, tx_hash.hex()
 
-
+            except Exception as e:
+                return False, str(e)
