@@ -1,6 +1,6 @@
 import customtkinter as ctk
 
-from blockchain.logic import ROOM_FEEDBACKS_INDEX, MAX_ROUNDS_INDEX
+from blockchain.logic import MAX_ROUNDS_INDEX
 
 class HostScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
@@ -79,7 +79,7 @@ class HostScreen(ctk.CTkFrame):
 
     def send_feedback(self, feedback_type):
         """Send feedback to smart contract, 0=Equal, 1=Greater, 2=Smaller"""
-        success, tx_hash = self.controller.web3_service.set_user1_feedback(feedback_type)
+        success, tx_hash = self.controller.web3_service.set_feedback(feedback_type)
         if success:
             self.status_label.configure(text=f"Feedback sent! Hash: {tx_hash[:10]}...")
             self.check_game_end()
@@ -87,20 +87,38 @@ class HostScreen(ctk.CTkFrame):
             self.status_label.configure(text=f"Error sending feedback: {tx_hash}", text_color="red")
 
     def check_game_end(self):
-        room_data = self.controller.web3_service.contract.functions.rooms(
-            self.controller.web3_service.room
-        ).call()
+        if not self.controller.web3_service.room:
+            return
+        current_count = self.controller.web3_service.get_feedback_count()
+        
+        try:
+            room_data = self.controller.web3_service.contract.functions.rooms(
+                self.controller.web3_service.room
+            ).call()
+            
+            max_rounds = room_data[MAX_ROUNDS_INDEX] 
 
-        feedbacks = room_data[ROOM_FEEDBACKS_INDEX]
-        max_rounds = room_data[MAX_ROUNDS_INDEX]
+            print(f"Syncing: {current_count}/{max_rounds} rounds completed.")
 
-        if len(feedbacks) == max_rounds:
-            self.finish_game()
+            if current_count >= max_rounds:
+                self.status_label.configure(text="All rounds finished! Revealing...", text_color="orange")
+                self.update()
+                self.finish_game()
+                
+        except Exception as e:
+            print(f"Error syncing game end: {e}")
 
     def finish_game(self):
-        secret = int(self.secret_entry.get())
+        secret_raw = self.secret_entry.get()
+        if not secret_raw.isdigit():
+            print("Error: Secret is not a number")
+            return
+            
+        secret = int(secret_raw)
         success, msg = self.controller.web3_service.reveal_secret(secret)
+        
         if success:
             self.status_label.configure(text="Game Finished! Secret revealed.", text_color="green")
         else:
+            self.status_label.configure(text=f"Reveal Error: {msg}", text_color="red")
             print("Reveal Error:", msg)

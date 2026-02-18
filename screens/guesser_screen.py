@@ -42,9 +42,36 @@ class GuesserScreen(ctk.CTkFrame):
         if not guess.isdigit():
             return
             
-        success, tx_hash = self.controller.web3_service.set_user2_guess(int(guess))
+        success, tx_hash = self.controller.web3_service.set_guess(int(guess))
         if success:
-            self.feedback_label.configure(text="Guess sent! Waiting for feedback...")
-            print(f"Guess sent: {tx_hash}")
+            self.feedback_label.configure(text="Guess sent! Waiting for feedback...", text_color="blue")
+            self.poll_for_feedback()
         else:
-            self.feedback_label.configure(text=f"Error: {tx_hash}")
+            self.feedback_label.configure(text=f"Error: {tx_hash}", text_color="red")
+
+    def poll_for_feedback(self):
+        """Check for the latest feedback event from the blockchain"""
+        success, data = self.controller.web3_service.get_last_feedback_event()
+        
+        if success:
+            mapping = {0: "Equal (You Won!)", 1: "Greater", 2: "Smaller"}
+            fb_text = mapping.get(data['feedback'], "Unknown")
+            self.feedback_label.configure(text=f"Host says: {fb_text}", text_color="green")
+        else:
+            # rechecks every 5 seconds if not found yet
+            self.after(5000, self.poll_for_feedback)
+
+    def get_last_feedback_event(self):
+        try:
+            events = self.contract.events.FeedbackSent().get_logs(
+                fromBlock=self.room_creation_block or "earliest",
+                toBlock="latest"
+            )
+            relevant = [e for e in events if e.args.roomNumber == self.room]
+            if not relevant:
+                return False, "No feedback yet"
+            
+            last_event = relevant[-1]
+            return True, {"feedback": last_event.args.feedback, "round": last_event.args.round}
+        except Exception as e:
+            return False, str(e)
