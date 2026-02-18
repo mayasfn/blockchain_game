@@ -11,7 +11,7 @@ class WalletScreen(ctk.CTkFrame):
 
         self.key_entry = ctk.CTkEntry(
             self, 
-            placeholder_text="Private Key (Required for transactions)", 
+            placeholder_text="0x... (Private Key)",  
             show="*", 
             width=300
         )
