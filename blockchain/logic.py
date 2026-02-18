@@ -5,9 +5,12 @@ from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
 from eth_abi import encode
 from eth_utils import keccak
 
-ROOM_GUESSES_INDEX = 4
-ROOM_FEEDBACKS_INDEX = 5
-ENTRY_FEE_INDEX = 9
+CONNECTED_USER_NUMBER=2
+SECRET_HASH_INDEX=3
+USER_COUNT_INDEX = 4
+MAX_ROUNDS_INDEX = 6
+ENTRY_FEE_INDEX = 7
+REVEAL_DEADLINE_INDEX = 8
 
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
@@ -62,6 +65,27 @@ class Web3Service:
             return False, "Invalid private key or wallet address"
         except Exception as e:
             return False, str(e)
+
+    def send_transaction(self, contract_func, value_wei=0):
+        try:
+            nonce = self.web3.eth.get_transaction_count(self.wallet_address, 'pending')
+
+            # 2x the current gas price to ensure it mines in the next block
+            gas_price = int(self.web3.eth.gas_price * 2.0) 
+
+            tx = contract_func.build_transaction({
+                "from": self.wallet_address,
+                "nonce": nonce,
+                "value": value_wei,
+                "gas": 400000,
+                "gasPrice": gas_price
+            })
+
+            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            return True, tx_hash.hex()
+        except Exception as e:
+            return False, str(e)
     # -----------------------------
     # Player / Room functions
     # -----------------------------
@@ -74,84 +98,45 @@ class Web3Service:
         if self.wallet_address is None or self.key is None:
             return False, "Wallet not connected"
         
-        try:
-            #  Generate the hash (Matches Solidity getHash)
-            # Use abi.encodePacked equivalent: encode then hash
-            secret_hash = keccak(encode(['uint256'], [secret_number]))
-
-            ## convert eth to wei 
-            value_in_wei = self.web3.to_wei(entry_fee_eth, "ether")
-
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-            # Pass the hash to the contract
-            tx = self.contract.functions.createRoom(
-                number_rounds, 
-                secret_hash
-            ).build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "value": value_in_wei,
-                "gas": 300000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
-
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            
+        secret_hash = keccak(encode(['uint256'], [secret_number]))
+        value_in_wei = self.web3.to_wei(entry_fee_eth, "ether")
+        
+        func = self.contract.functions.createRoom(number_rounds, secret_hash)
+        success, result = self.send_transaction(func, value_wei=value_in_wei)
+        
+        if success:
+            receipt = self.web3.eth.wait_for_transaction_receipt(result)
             self.room_creation_block = receipt.blockNumber
-            events = self.contract.events.RoomCreated().process_receipt(receipt)
             
+            events = self.contract.events.RoomCreated().process_receipt(receipt)
             if events:
                 self.room = events[0]["args"]["roomNumber"]
-                return True, f"Room {self.room} created with {entry_fee_eth} ETH bet!"
-            return False, "Event not found"
-        
-        except Exception as e:
-            return False, str(e)
-            
+                return True, f"Room {self.room} created!"
+            return True, "Room created (ID scan failed, check Etherscan)"
+        return False, result
+
+    def delete_room(self):
+        if self.wallet_address is None: return False, "Wallet not connected"
+        func = self.contract.functions.deleteRoom(self.room)
+        return self.send_transaction(func)
     def connect_to_room(self, room_id: int):
-            if self.wallet_address is None or self.key is None:
-                return False, "Wallet not connected"
+        if self.wallet_address is None or self.key is None:
+            return False, "Wallet not connected"
 
-            try:
-                room_data = self.contract.functions.rooms(room_id).call()
-                entry_fee_wei = room_data[ENTRY_FEE_INDEX] # Correctly using index 7
+        try:
+            room_data = self.contract.functions.rooms(room_id).call()
+            entry_fee_wei = room_data[ENTRY_FEE_INDEX]
+        except:
+            entry_fee_wei = self.web3.to_wei(0.01, "ether") 
 
-                nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-                tx = self.contract.functions.connectToRoom(room_id).build_transaction({
-                    "from": self.wallet_address,
-                    "nonce": nonce,
-                    "value": entry_fee_wei, 
-                    "gas": 250000,
-                    "gasPrice": self.web3.to_wei("20", "gwei")
-                })
+        func = self.contract.functions.connectToRoom(room_id)
+        return self.send_transaction(func, value_wei=entry_fee_wei)
 
-                signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-                tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-                self.room = room_id
-                return True, tx_hash.hex()
-            except Exception as e:
-                return False, str(e)  
- 
     def withdraw_winnings(self):
         if self.wallet_address is None or self.key is None:
             return False, "Wallet not connected"
-        try:
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-            tx = self.contract.functions.withdrawWinnings().build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "gas": 100000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            return True, tx_hash.hex()
-        except Exception as e:
-            return False, str(e)
+        func = self.contract.functions.withdrawWinnings()
+        return self.send_transaction(func)
 
 
     def delete_room(self):
@@ -165,7 +150,7 @@ class Web3Service:
                 "from": self.wallet_address,
                 "nonce": nonce,
                 "gas": 150000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
+                "gasPrice": int(self.web3.eth.gas_price * 1.5)
             })
     
             signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
@@ -177,99 +162,32 @@ class Web3Service:
         except Exception as e:
             return False, str(e)
 
-    def set_user2_guess(self, guess: int):
+    def set_guess(self, guess: int):
         if self.wallet_address is None:
             return False, "Wallet not connected"
-    
-        try:
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-    
-            tx = self.contract.functions.setUser2Guess(
-                self.room, guess
-            ).build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "gas": 150000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
-    
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
-    
-            return True, tx_hash.hex()
-    
-        except Exception as e:
-            return False, str(e)
+        contract_func = self.contract.functions.setUser2Guess(self.room, guess)
+        return self.send_transaction(contract_func)
 
-    def get_user2_last_guess(self):
-        try:
-            room = self.contract.functions.rooms(self.room).call()
-
-            guesses = room[ROOM_GUESSES_INDEX]
-            if not guesses:
-                return False, "No guesses yet"
-
-            last_guess = guesses[-1]
-            round_number = len(guesses)
-
-            return True, {
-                "guess": last_guess,
-                "round": round_number
-            }
-
-        except Exception as e:
-            return False, str(e)
-
-            
-    def set_user1_feedback(self, feedback: int):
+    def set_feedback(self, feedback: int):
         if self.wallet_address is None:
             return False, "Wallet not connected"
-    
+        func = self.contract.functions.setUser1Feedback(self.room, feedback)
+        return self.send_transaction(func)
+
+    def get_game_result(self, tx_hash=None):
         try:
-            nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-    
-            tx = self.contract.functions.setUser1Feedback(
-                self.room, feedback
-            ).build_transaction({
-                "from": self.wallet_address,
-                "nonce": nonce,
-                "gas": 150000,
-                "gasPrice": self.web3.to_wei("20", "gwei")
-            })
-    
-            signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
-    
-            return True, tx_hash.hex()
-    
-        except Exception as e:
-            return False, str(e)
+            if tx_hash:
+                receipt = self.web3.eth.get_transaction_receipt(tx_hash)
+                logs = self.contract.events.GameFinished().process_receipt(receipt)
+                if logs:
+                    return True, {
+                        "winner": logs[0]["args"]["winner"],
+                        "user1Lied": logs[0]["args"]["user1Lied"]
+                    }
 
-    def get_user1_last_feedback(self):
-        try:
-            room = self.contract.functions.rooms(self.room).call()
-
-            feedbacks = room[ROOM_FEEDBACKS_INDEX]
-            if not feedbacks:
-                return False, "No feedback yet"
-
-            last_feedback = feedbacks[-1]
-            round_number = len(feedbacks)
-
-            return True, {
-                "feedback": last_feedback,
-                "round": round_number
-            }
-
-        except Exception as e:
-            return False, str(e)
-
-    def get_game_result(self):
-        try:
+            # Fallback to general log scanning
             events = self.contract.events.GameFinished().get_logs(
-                fromBlock=self.room_creation_block,
+                fromBlock=self.room_creation_block or "earliest",
                 toBlock="latest"
             )
 
@@ -286,27 +204,7 @@ class Web3Service:
             return False, str(e)
 
     def reveal_secret(self, secret: int):
-            if self.wallet_address is None or self.key is None:
-                return False, "Wallet not connected"
-
-            try:
-                nonce = self.web3.eth.get_transaction_count(self.wallet_address)
-
-                tx = self.contract.functions.revealSecret(
-                    self.room,
-                    secret
-                ).build_transaction({
-                    "from": self.wallet_address,
-                    "nonce": nonce,
-                    "gas": 300000,
-                    "gasPrice": self.web3.to_wei("20", "gwei")
-                })
-
-                signed_tx = self.web3.eth.account.sign_transaction(tx, self.key)
-                tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-                return True, tx_hash.hex()
-
-            except Exception as e:
-                return False, str(e)
+        if self.wallet_address is None or self.key is None:
+            return False, "Wallet not connected"
+        func = self.contract.functions.revealSecret(self.room, secret)
+        return self.send_transaction(func)

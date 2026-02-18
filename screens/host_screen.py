@@ -1,5 +1,7 @@
 import customtkinter as ctk
 
+from blockchain.logic import ROOM_FEEDBACKS_INDEX, MAX_ROUNDS_INDEX
+
 class HostScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, corner_radius=20)
@@ -89,9 +91,8 @@ class HostScreen(ctk.CTkFrame):
             self.controller.web3_service.room
         ).call()
 
-        guesses = room_data[4] #ROOM_GUESSES_INDEX
-        feedbacks = room_data[5]  #ROOM_FEEDBACKS_INDEX
-        max_rounds = room_data[8] # NUMBER_ROUNDS_INDEX
+        feedbacks = room_data[ROOM_FEEDBACKS_INDEX]
+        max_rounds = room_data[MAX_ROUNDS_INDEX]
 
         if len(feedbacks) == max_rounds:
             self.finish_game()
