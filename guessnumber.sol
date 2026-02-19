@@ -83,14 +83,6 @@ contract GuessNumber {
             return 101;
         }
 
-    function connectedUserNumber(uint256 roomNumber, uint8 user) external {
-        Room storage room = rooms[roomNumber];
-
-        require(room.exists, "Room does not exist");
-        require(room.connectedUserNumber <= 2, "Invalid user status");
-
-        room.connectedUserNumber = user;
-    }
     /* =========================
         DELETE ROOM
     ==========================*/
