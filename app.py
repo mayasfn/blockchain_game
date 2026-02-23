@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from screens.loading_overlay import LoadingOverlay
 from screens.menu import MenuScreen
 from screens.wallet import WalletScreen
 from screens.host_screen import HostScreen
@@ -25,15 +26,17 @@ class App(ctk.CTk):
             screen = Screen(self.container, self)
             self.screens[Screen.__name__] = screen
             screen.place(relwidth=1, relheight=1)
-
+        
+        self.loading_out = LoadingOverlay(self)
         self.show_screen("MenuScreen")
 
     def show_screen(self, name):
         if name == "WalletScreen":
             if "WalletScreen" in self.screens:
                 self.screens["WalletScreen"].destroy()
-            wallet_screen = WalletScreen(self.container, self)
-            self.screens["WalletScreen"] = wallet_screen
-            wallet_screen.place(relwidth=1, relheight=1)
-        
+            wallet = WalletScreen(self.container, self)
+            self.screens["WalletScreen"] = wallet
+            wallet.place(relwidth=1, relheight=1)
+            
+        self.current_screen = self.screens.get(name)
         self.screens[name].tkraise()

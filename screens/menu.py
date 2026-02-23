@@ -25,6 +25,14 @@ class MenuScreen(ctk.CTkFrame):
                     ).pack(pady=6)
 
     def on_button_click(self, screen_name, button_text):
-        # Save the intent in the controller (App class)
-        self.controller.user_intent = button_text
-        self.controller.show_screen(screen_name)
+        if "Host" in button_text:
+            self.controller.next_destination = "HostScreen"
+        elif "Join" in button_text:
+            self.controller.next_destination = "GuesserScreen"
+        else:
+            self.controller.next_destination = screen_name
+            
+        if "Solo" in button_text:
+            self.controller.show_screen("GameScreen")
+        else:
+            self.controller.show_screen("WalletScreen")
