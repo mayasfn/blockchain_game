@@ -6,20 +6,15 @@ from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
 from eth_abi import encode
 from eth_utils import keccak
 
-CONNECTED_USER_NUMBER = 2
-SECRET_HASH_INDEX = 3
-USER_COUNT_INDEX = 4
 EXISTS_INDEX = 5
-MAX_ROUNDS_INDEX = 6
 ENTRY_FEE_INDEX = 7
-REVEAL_DEADLINE_INDEX = 8
+MAX_ROUNDS_INDEX = 6
 
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
         self.web3 = Web3(Web3.HTTPProvider(rpc_url))
         self.wallet_address = None
         self.key = None
-        self.player = None
         self.room = None
         self.contract_address = CONTRACT_ADDRESS
         self.contract_abi = CONTRACT_ABI
@@ -43,8 +38,8 @@ class Web3Service:
 
     def check_wallet_connection(self, private_key: str):
         try:
-            if not self.web3.is_connected():
-                return False, "Cannot connect to blockchain node"
+            if not private_key.startswith('0x'):
+                private_key = '0x' + private_key
             account = Account.from_key(private_key)
             if account.address != self.wallet_address:
                 return False, "Private key does not match wallet address"
@@ -56,7 +51,6 @@ class Web3Service:
     def send_transaction(self, contract_func, value_wei=0):
         """Helper to handle nonces and aggressive gas pricing for Sepolia."""
         try:
-            # 'pending' tis o avoid nonce collisions during rapid UI actions
             nonce = self.web3.eth.get_transaction_count(self.wallet_address, 'pending')
 
             # 2x the current gas price to ensure it mines in the next block
@@ -66,7 +60,7 @@ class Web3Service:
                 "from": self.wallet_address,
                 "nonce": nonce,
                 "value": value_wei,
-                "gas": 400000,
+                "gas": 500000,
                 "gasPrice": gas_price
             })
 
@@ -78,13 +72,7 @@ class Web3Service:
     # -----------------------------
     # Player / Room functions
     # -----------------------------
-    def set_player(self, player: int):
-        self.player = player
-
-    def create_room(self, secret_number: int, number_rounds: int = 3, entry_fee_eth: float = 1.0):
-        if self.wallet_address is None or self.key is None:
-            return False, "Wallet not connected"
-        
+    def create_room(self, secret_number: int, number_rounds: int = 3, entry_fee_eth: float = 0.1):
         secret_hash = keccak(encode(['uint256'], [secret_number]))
         value_in_wei = self.web3.to_wei(entry_fee_eth, "ether")
         
@@ -93,106 +81,127 @@ class Web3Service:
         
         if success:
             receipt = self.web3.eth.wait_for_transaction_receipt(result)
-            self.room_creation_block = receipt.blockNumber
             events = self.contract.events.RoomCreated().process_receipt(receipt)
             if events:
                 self.room = events[0]["args"]["roomNumber"]
                 return True, f"Room {self.room} created!"
-            return True, "Room created (ID scan failed)"
-        return False, result
+        return success, result
 
     def connect_to_room(self, room_id: int):
         """Strictly fetches entry fee and sets room state upon success."""
         if self.wallet_address is None or self.key is None:
             return False, "Wallet not connected"
 
-        # Fetch precise entry fee or fail early to save gas
         try:
             room_data = self.contract.functions.rooms(room_id).call()
             if not room_data[EXISTS_INDEX]:
                 return False, f"Room {room_id} does not exist"
+            
             entry_fee_wei = room_data[ENTRY_FEE_INDEX]
+            func = self.contract.functions.connectToRoom(room_id)
+            success, tx = self.send_transaction(func, value_wei=entry_fee_wei)
+            if success:
+                self.room = room_id
+                return success, tx
         except Exception as e:
-            return False, f"Failed to fetch room fee: {str(e)}"
-
-        func = self.contract.functions.connectToRoom(room_id)
-        success, result = self.send_transaction(func, value_wei=entry_fee_wei)
-        
-        if success:
-            self.room = room_id
-            return True, result
-        return False, result
+            return False, str(e)
 
     def set_guess(self, guess: int):
-        if self.wallet_address is None or self.room is None:
-            return False, "No active room detected."
+        if self.room is None:
+            return False, "No active room ID. Please join a room first."
         func = self.contract.functions.setUser2Guess(self.room, guess)
         return self.send_transaction(func)
 
     def set_feedback(self, feedback: int):
-        if self.wallet_address is None or self.room is None:
-            return False, "No active room detected."
         func = self.contract.functions.setUser1Feedback(self.room, feedback)
         return self.send_transaction(func)
 
     def reveal_secret(self, secret: int):
-        if self.wallet_address is None or self.room is None:
-            return False, "No active room detected."
         func = self.contract.functions.revealSecret(self.room, secret)
         return self.send_transaction(func)
 
+    def get_current_round_guess(self):
+        """Used by the Host to see if the Guesser has moved yet."""
+        try:
+            current_block = self.web3.eth.block_number
+            events = self.contract.events.GuessSent().get_logs(from_block=current_block - 100)
+            
+            relevant = [e for e in events if e.args.roomNumber == self.room]
+            
+            if not relevant: 
+                return False, None
+            
+            return True, relevant[-1].args.guess
+        except Exception as e:
+            print(f"Polling error: {e}")
+            return False, None
+
+    def get_feedback_count(self):
+        try:
+            current_block = self.web3.eth.block_number
+            events = self.contract.events.FeedbackSent().get_logs(from_block=current_block - 2000)
+            relevant = [e for e in events if e.args.roomNumber == self.room]
+            return len(relevant)
+        except Exception as e:
+            print(f"Sync Error: {e}")
+            return 0
+
+    def check_guesser_joined(self):
+        try:
+            room_data = self.contract.functions.rooms(self.room).call()
+            player2 = room_data[1] 
+            is_joined = player2 != "0x0000000000000000000000000000000000000000"
+            return is_joined, player2
+        except:
+            return False, None
+
+    def get_last_feedback_event(self):
+        try:
+            current_block = self.web3.eth.block_number
+            start_block = current_block - 200
+            
+            events = self.contract.events.FeedbackSent().get_logs(from_block=start_block)
+            
+            relevant = [e for e in events if e.args.roomNumber == self.room]
+            if not relevant:
+                return False, "No feedback yet"
+
+            last_event = relevant[-1]
+            return True, {"feedback": last_event.args.feedback}
+        except Exception as e:
+            print(f"Feedback Log Error: {e}")
+            return False, str(e)
+        
     def withdraw_winnings(self):
+        """Calls the withdrawWinnings function on the smart contract."""
         if self.wallet_address is None or self.key is None:
             return False, "Wallet not connected"
+        
         func = self.contract.functions.withdrawWinnings()
         return self.send_transaction(func)
 
-    def delete_room(self):
-        if self.wallet_address is None or self.room is None:
-            return False, "No active room to delete"
-        func = self.contract.functions.deleteRoom(self.room)
-        success, result = self.send_transaction(func)
-        if success:
-            self.room = None # Reset state
-        return success, result
-
-    def get_feedback_count(self):
-        """Scans events to count feedbacks since dynamic arrays are excluded from the mapping."""
-        if not self.room:
-            return 0
+    def get_game_result(self):
+        """Checks for the GameFinished event to see if the host has revealed."""
         try:
-            events = self.contract.events.FeedbackSent().get_logs(
-                fromBlock=self.room_creation_block or "earliest",
-                toBlock="latest"
-            )
-            this_room_feedbacks = [e for e in events if e.args.roomNumber == self.room]
-            return len(this_room_feedbacks)
-        except Exception as e:
-            print(f"Error fetching feedback count: {e}")
-            return 0
-
-    def get_game_result(self, tx_hash=None):
-        """Instant decoding of GameFinished event via receipt or fallback scan."""
-        try:
-            if tx_hash:
-                receipt = self.web3.eth.get_transaction_receipt(tx_hash)
-                logs = self.contract.events.GameFinished().process_receipt(receipt)
-                if logs:
-                    return True, {
-                        "winner": logs[0]["args"]["winner"],
-                        "user1Lied": logs[0]["args"]["user1Lied"]
-                    }
+            current_block = self.web3.eth.block_number
+            events = self.contract.events.GameFinished().get_logs(from_block=current_block - 2000)
             
-            events = self.contract.events.GameFinished().get_logs(
-                fromBlock=self.room_creation_block or "earliest",
-                toBlock="latest"
-            )
-            for e in events[::-1]:
-                if e["args"]["roomNumber"] == self.room:
+            for e in events:
+                if e.args.roomNumber == self.room:
                     return True, {
-                        "winner": e["args"]["winner"],
-                        "user1Lied": e["args"]["user1Lied"]
+                        "winner": e.args.winner, 
+                        "user1Lied": e.args.user1Lied
                     }
-            return False, "No result yet"
+            return False, None
         except Exception as e:
+            print(f"Result Sync Error: {e}")
             return False, str(e)
+
+    def get_pending_balance(self):
+        """Checks the contract to see if this wallet has ETH to claim."""
+        try:
+            balance_wei = self.contract.functions.pendingWithdrawals(self.wallet_address).call()
+            return balance_wei > 0
+        except Exception as e:
+            print(f"Error checking pending balance: {e}")
+            return False
