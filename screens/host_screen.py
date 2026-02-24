@@ -7,7 +7,7 @@ class HostScreen(ctk.CTkFrame):
         self.controller = controller
         
         self.rounds_var = ctk.StringVar(value="3")
-        self.fee_map = {"3": 0.1, "5": 0.2, "10": 0.5}
+        self.fee_map = {"3": 0.01, "5": 0.02, "10": 0.05}
 
         # --- SETUP FRAME ---
         self.setup_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -23,6 +23,8 @@ class HostScreen(ctk.CTkFrame):
 
         self.fee_label = ctk.CTkLabel(self.setup_frame, text="Entry Fee: 0.1 ETH")
         self.fee_label.pack()
+        self.balance_label= ctk.CTkLabel(self.setup_frame, text="")
+        self.balance_label.pack()
 
         self.secret_entry = ctk.CTkEntry(self.setup_frame, placeholder_text="Secret (1-100)", width=200)
         self.secret_entry.pack(pady=5)
@@ -70,6 +72,11 @@ class HostScreen(ctk.CTkFrame):
         self.controller.loading_out.stop()
         if success:
             self.show_game_ui(self.controller.web3_service.room)
+        elif 'insufficient funds' in msg:
+            balance = self.controller.web3_service.get_balance_eth()
+            self.balance_label.configure(text=f"Insufficient balance: {balance}")
+            
+            
 
     def resume_room_action(self):
         """Skip creation and jump to game state for a specific Room ID"""
@@ -88,7 +95,7 @@ class HostScreen(ctk.CTkFrame):
         if self.controller.current_screen != self: return
         joined, _ = self.controller.web3_service.check_guesser_joined()
         success, guess_val = self.controller.web3_service.get_current_round_guess()
-
+        
         if success and guess_val is not None:
             self.status_label.configure(text=f"GUESS RECEIVED: {guess_val}", text_color="cyan")
         elif joined:
