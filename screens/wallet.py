@@ -6,6 +6,7 @@ class WalletScreen(ctk.CTkFrame):
         self.controller = controller
 
         ctk.CTkLabel(self, text="Wallet", font=("Arial", 22, "bold")).pack(pady=(40, 20))
+        
         self.wallet = ctk.CTkEntry(self, placeholder_text="0x... (Wallet Address)", width=260)
         self.wallet.pack(pady=10)
 
@@ -31,11 +32,14 @@ class WalletScreen(ctk.CTkFrame):
             self, 
             text="Connect & Verify", 
             command=self.handle_connection,
-            fg_color="#2c3e50",
-            hover_color="#34495e"
+            fg_color="gray",
+           # state="disabled"
         )
         self.connect_btn.pack(pady=20)
 
+        #self.wallet.bind("<KeyRelease>", lambda e: self.validate_inputs())
+        #self.key_entry.bind("<KeyRelease>", lambda e: self.validate_inputs())
+        
         # Back to Menu
         ctk.CTkButton(
             self,
@@ -44,6 +48,16 @@ class WalletScreen(ctk.CTkFrame):
             text_color="gray",
             command=lambda: controller.show_screen("MenuScreen"),
         ).pack()
+
+    def validate_inputs(self):
+        """Enable button only if both fields have text"""
+        address = self.wallet.get().strip()
+        key = self.key_entry.get().strip()
+        
+        if address and key:
+            self.connect_btn.configure(state="normal", fg_color="#2c3e50")
+        else:
+            self.connect_btn.configure(state="disabled", fg_color="gray")
 
     def handle_connection(self):
         """Processes the wallet connection and key verification."""
@@ -54,30 +68,27 @@ class WalletScreen(ctk.CTkFrame):
             self.update_info("Address and Private Key are required!", "red")
             return
 
-        # 1. Connect the address
         error_msg = self.controller.web3_service.connect_wallet(address)
         if error_msg:
             self.update_info(error_msg, "red")
             return
 
-        # 2. Verify the private key matches the address
-        # This is what sets 'self.key' in Web3Service for createRoom/connectToRoom
         success, message = self.controller.web3_service.check_wallet_connection(private_key)
 
         if success:
             try:
-                # Fetch real-time balance from the network (testnet or mainnet)
                 balance = self.controller.web3_service.get_balance_eth()
                 
-                # Navigate to GameScreen and pass dynamic info
-                game_screen = self.controller.screens["GameScreen"]
-                game_screen.update_wallet_info(
-                    balance_eth=f"{balance:.4f}", 
-                    game_price_eth="Variable (based on room)"
-                )
+                dest = getattr(self.controller, "next_destination", "MenuScreen")
                 
-                print(f"Connected to: {address}")
-                self.controller.show_screen("GameScreen")
+                if dest in self.controller.screens:
+                    target_screen = self.controller.screens[dest]
+                    if hasattr(target_screen, "update_wallet_info"):
+                        target_screen.update_wallet_info(balance_eth=f"{balance:.4f}")
+
+                print(f"Verified! Moving to: {dest}")
+                self.controller.show_screen(dest)
+                
             except Exception as e:
                 self.update_info(f"RPC Error: {str(e)}", "red")
         else:
@@ -85,3 +96,4 @@ class WalletScreen(ctk.CTkFrame):
 
     def update_info(self, text, color="gray"):
         self.info_label.configure(text=text, text_color=color)
+        
