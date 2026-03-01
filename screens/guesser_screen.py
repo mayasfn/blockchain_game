@@ -19,6 +19,8 @@ class GuesserScreen(ctk.CTkFrame):
 
         self.room_title = ctk.CTkLabel(self.guess_frame, text="ROOM: --", font=("Arial", 18, "bold"), text_color="green")
         self.room_title.pack(pady=10)
+        self.round_label = ctk.CTkLabel(self.guess_frame, text="", font=("Arial", 12), text_color="gray")
+        self.round_label.pack()
         self.guess_entry = ctk.CTkEntry(self.guess_frame, placeholder_text="Your Guess", width=200)
         self.guess_entry.pack(pady=10)
         ctk.CTkButton(self.guess_frame, text="Send Guess", command=self.send_guess).pack(pady=10)
@@ -72,7 +74,12 @@ class GuesserScreen(ctk.CTkFrame):
         is_finished, result = self.controller.web3_service.get_game_result()
         if is_finished:
             self.check_and_show_withdraw()
-            return 
+            return
+
+        max_r = self.controller.web3_service.max_rounds
+        if max_r:
+            fc = self.controller.web3_service.get_feedback_count()
+            self.round_label.configure(text=f"Round {fc + 1} / {max_r}")
 
         success, data = self.controller.web3_service.get_last_feedback_event()
         if success:
@@ -91,6 +98,11 @@ class GuesserScreen(ctk.CTkFrame):
 
     def withdraw_action(self):
         self.controller.loading_out.start()
+        self.update()
         success, tx = self.controller.web3_service.withdraw_winnings()
-        if success: self.status_label.configure(text="Winnings Claimed!")
+        if success:
+            self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx)
+            self.status_label.configure(text="Winnings Claimed!")
+        else:
+            self.status_label.configure(text=f"Withdraw failed: {tx}", text_color="red")
         self.controller.loading_out.stop()

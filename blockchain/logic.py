@@ -1,5 +1,3 @@
-import os
-import time
 from web3 import Web3
 from eth_account import Account
 from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
@@ -19,6 +17,7 @@ class Web3Service:
         self.contract_address = CONTRACT_ADDRESS
         self.contract_abi = CONTRACT_ABI
         self.room_creation_block = None
+        self.max_rounds = None
 
         self.contract = self.web3.eth.contract(
             address=self.contract_address,
@@ -84,6 +83,7 @@ class Web3Service:
             events = self.contract.events.RoomCreated().process_receipt(receipt)
             if events:
                 self.room = events[0]["args"]["roomNumber"]
+                self.max_rounds = number_rounds
                 return True, f"Room {self.room} created!"
         return success, result
 
@@ -96,7 +96,8 @@ class Web3Service:
             room_data = self.contract.functions.rooms(room_id).call()
             if not room_data[EXISTS_INDEX]:
                 return False, f"Room {room_id} does not exist"
-            
+
+            self.max_rounds = room_data[MAX_ROUNDS_INDEX]
             entry_fee_wei = room_data[ENTRY_FEE_INDEX]
             func = self.contract.functions.connectToRoom(room_id)
             success, tx = self.send_transaction(func, value_wei=entry_fee_wei)
@@ -152,7 +153,6 @@ class Web3Service:
             guesser = room_data[0]   # [0] = guess_player (guesser/User2)
             host    = room_data[1]   # [1] = feedback_player (host/User1)
             is_joined = guesser != "0x0000000000000000000000000000000000000000"
-            print(f"[check_guesser_joined] room={self.room} | host={host} | guesser={guesser} | joined={is_joined}")
             return is_joined, guesser
         except Exception as e:
             print(f"[check_guesser_joined] ERROR: {e}")

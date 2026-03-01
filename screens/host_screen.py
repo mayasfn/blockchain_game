@@ -8,6 +8,8 @@ class HostScreen(ctk.CTkFrame):
         
         self.rounds_var = ctk.StringVar(value="3")
         self.fee_map = {"3": 0.01, "5": 0.02, "10": 0.05}
+        self._typed_secret = None
+        self._game_ended = False
 
         # --- SETUP FRAME ---
         self.setup_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -43,6 +45,9 @@ class HostScreen(ctk.CTkFrame):
         self.room_label = ctk.CTkLabel(self.game_frame, text="ROOM: --", font=("Arial", 18, "bold"), text_color="green")
         self.room_label.pack(pady=10)
 
+        self.round_label = ctk.CTkLabel(self.game_frame, text="", font=("Arial", 12), text_color="gray")
+        self.round_label.pack()
+
         self.status_label = ctk.CTkLabel(self.game_frame, text="Waiting...", font=("Arial", 14))
         self.status_label.pack(pady=10)
 
@@ -71,6 +76,7 @@ class HostScreen(ctk.CTkFrame):
         )
         self.controller.loading_out.stop()
         if success:
+            self._typed_secret = secret
             self.show_game_ui(self.controller.web3_service.room)
         elif 'insufficient funds' in msg:
             balance = self.controller.web3_service.get_balance_eth()
@@ -92,11 +98,15 @@ class HostScreen(ctk.CTkFrame):
         self.start_polling()
 
     def start_polling(self):
-        if self.controller.current_screen != self: return
+        if self.controller.current_screen != self or self._game_ended: return
 
         joined, guesser_addr = self.controller.web3_service.check_guesser_joined()
         success, guess_val = self.controller.web3_service.get_current_round_guess()
-        print(f"[start_polling] joined={joined} | guess_found={success} | guess_val={guess_val}")
+
+        max_r = self.controller.web3_service.max_rounds
+        if max_r:
+            fc = self.controller.web3_service.get_feedback_count()
+            self.round_label.configure(text=f"Round {fc + 1} / {max_r}")
 
         if success and guess_val is not None:
             self.status_label.configure(text=f"GUESS RECEIVED: {guess_val}", text_color="cyan")
@@ -115,44 +125,66 @@ class HostScreen(ctk.CTkFrame):
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)
             self.status_label.configure(text="Feedback confirmed!")
-            self.check_game_end()
+            self.check_game_end(feedback_type)
         self.controller.loading_out.stop()
 
-    def check_game_end(self):
-        current_count = self.controller.web3_service.get_feedback_count()
+    def check_game_end(self, last_feedback):
         try:
             room_data = self.controller.web3_service.contract.functions.rooms(self.controller.web3_service.room).call()
-            if current_count >= room_data[MAX_ROUNDS_INDEX]:
-                self.fb_btn_frame.pack_forget() # Hide feedback buttons
+            max_rounds = room_data[MAX_ROUNDS_INDEX]
+            current_count = self.controller.web3_service.get_feedback_count()
+            all_rounds_done = current_count >= max_rounds
+            guesser_won = last_feedback == 0  # Equal
+
+            if guesser_won or all_rounds_done:
+                self.fb_btn_frame.pack_forget()
                 self.show_reveal_button()
         except Exception as e:
-            print(f"Sync error: {e}")
+            print(f"[check_game_end] error: {e}")
 
     def show_reveal_button(self):
         if hasattr(self, 'reveal_btn'): return
+        self._game_ended = True
+        self.round_label.pack_forget()
+        self.status_label.configure(text="All rounds done! Reveal your secret.", text_color="white")
+        self.secret_reveal_entry = ctk.CTkEntry(self.game_frame, placeholder_text="Your Secret Number", width=200)
+        if self._typed_secret:
+            self.secret_reveal_entry.insert(0, self._typed_secret)
+        self.secret_reveal_entry.pack(pady=5)
         self.reveal_btn = ctk.CTkButton(self.game_frame, text="Reveal Secret", fg_color="green", command=self.finish_game)
         self.reveal_btn.pack(pady=10)
 
     def finish_game(self):
-        secret = self.secret_entry.get()
+        secret = self.secret_reveal_entry.get()
+        if not secret.isdigit(): return
         self.controller.loading_out.start()
+        self.update()
         success, msg = self.controller.web3_service.reveal_secret(int(secret))
         if success:
-            self.controller.web3_service.web3.eth.wait_for_transaction_receipt(msg)
-            self.reveal_btn.destroy()
-            self.check_and_show_withdraw()
+            receipt = self.controller.web3_service.web3.eth.wait_for_transaction_receipt(msg)
+            if receipt.status == 1:
+                self.reveal_btn.destroy()
+                self.secret_reveal_entry.destroy()
+                self.check_and_show_withdraw()
+            else:
+                self.status_label.configure(text="Reveal rejected (wrong secret?)", text_color="red")
         self.controller.loading_out.stop()
 
     def check_and_show_withdraw(self):
         if self.controller.web3_service.get_pending_balance():
-            ctk.CTkButton(self.game_frame, text="Withdraw Winnings", fg_color="gold", text_color="black", 
+            self.status_label.configure(text="YOU WON!", font=("Arial", 20, "bold"), text_color="gold")
+            ctk.CTkButton(self.game_frame, text="Withdraw Winnings", fg_color="gold", text_color="black",
                            command=self.withdraw_action).pack(pady=10)
-            self.status_label.configure(text="YOU WON!", text_color="gold")
         else:
-            self.status_label.configure(text="Game Over. Host Lost.", text_color="gray")
+            self.status_label.configure(text="YOU LOST.", font=("Arial", 20, "bold"), text_color="red")
 
     def withdraw_action(self):
         self.controller.loading_out.start()
+        self.update()
         success, tx = self.controller.web3_service.withdraw_winnings()
-        if success: self.status_label.configure(text="Winnings Claimed!")
+        if success:
+            self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx)
+            self.status_label.configure(text="Winnings Claimed!")
+        else:
+            self.status_label.configure(text=f"Withdraw failed: {tx}", text_color="red")
         self.controller.loading_out.stop()
