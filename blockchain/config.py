@@ -3,7 +3,7 @@ from web3 import Web3
 RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com'
 
 CONTRACT_ADDRESS = Web3.to_checksum_address(
-    "0x5B10785A6D02a18678dd1A009FC1735346D71857"
+    "0x5118245cc1530308f0436C4Ca75524EA7dCe39f1"
 )
 
 CONTRACT_ABI = [

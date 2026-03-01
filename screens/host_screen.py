@@ -93,19 +93,24 @@ class HostScreen(ctk.CTkFrame):
 
     def start_polling(self):
         if self.controller.current_screen != self: return
-        joined, _ = self.controller.web3_service.check_guesser_joined()
+
+        joined, guesser_addr = self.controller.web3_service.check_guesser_joined()
         success, guess_val = self.controller.web3_service.get_current_round_guess()
-        
+        print(f"[start_polling] joined={joined} | guess_found={success} | guess_val={guess_val}")
+
         if success and guess_val is not None:
             self.status_label.configure(text=f"GUESS RECEIVED: {guess_val}", text_color="cyan")
         elif joined:
             self.status_label.configure(text="Guesser Joined! Waiting for guess...", text_color="green")
         else:
             self.status_label.configure(text="Waiting for Guesser...", text_color="gray")
+
         self.after(5000, self.start_polling)
  
     def send_feedback(self, feedback_type):
         """Send feedback to smart contract, 0=Equal, 1=Greater, 2=Smaller"""
+        self.controller.loading_out.start()
+        self.update()
         success, tx_hash = self.controller.web3_service.set_feedback(feedback_type)
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)

@@ -39,11 +39,17 @@ class GuesserScreen(ctk.CTkFrame):
         success, msg = self.controller.web3_service.connect_to_room(int(room_id))
         
         if success:
-            self.controller.web3_service.web3.eth.wait_for_transaction_receipt(msg)
-            self.join_frame.pack_forget()
-            self.guess_frame.pack(pady=20, fill="both")
-            self.room_title.configure(text=f"ROOM: {room_id}")
-            self.poll_for_feedback() 
+            receipt = self.controller.web3_service.web3.eth.wait_for_transaction_receipt(msg)
+            if receipt.status == 0:
+                self.status_label.configure(text="Rejected by contract (wrong fee or same address)", text_color="red")
+            else:
+                self.join_frame.pack_forget()
+                self.guess_frame.pack(pady=20, fill="both")
+                self.room_title.configure(text=f"ROOM: {room_id}")
+                self.status_label.configure(text=f"Connected to Room #{room_id}", text_color="green")
+                self.poll_for_feedback()
+        else:
+            self.status_label.configure(text=f"Error: {msg}", text_color="red")
         self.controller.loading_out.stop()
 
     def send_guess(self):

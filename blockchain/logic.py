@@ -102,7 +102,7 @@ class Web3Service:
             success, tx = self.send_transaction(func, value_wei=entry_fee_wei)
             if success:
                 self.room = room_id
-                return success, tx
+            return success, tx
         except Exception as e:
             return False, str(e)
 
@@ -149,10 +149,13 @@ class Web3Service:
     def check_guesser_joined(self):
         try:
             room_data = self.contract.functions.rooms(self.room).call()
-            player2 = room_data[1] 
-            is_joined = player2 != "0x0000000000000000000000000000000000000000"
-            return is_joined, player2
-        except:
+            guesser = room_data[0]   # [0] = guess_player (guesser/User2)
+            host    = room_data[1]   # [1] = feedback_player (host/User1)
+            is_joined = guesser != "0x0000000000000000000000000000000000000000"
+            print(f"[check_guesser_joined] room={self.room} | host={host} | guesser={guesser} | joined={is_joined}")
+            return is_joined, guesser
+        except Exception as e:
+            print(f"[check_guesser_joined] ERROR: {e}")
             return False, None
 
     def get_last_feedback_event(self):
