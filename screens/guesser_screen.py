@@ -29,7 +29,7 @@ class GuesserScreen(ctk.CTkFrame):
 
         self.status_label = ctk.CTkLabel(self, text="Status: Not Connected", text_color="gray")
         self.status_label.pack(side="bottom", pady=5)
-        ctk.CTkButton(self, text="Back to Menu", command=lambda: controller.show_screen("MenuScreen")).pack(side="bottom", pady=20)
+        ctk.CTkButton(self, text="Back to Menu", command=lambda: (controller.web3_service.reset_game_state(), controller.show_screen("MenuScreen"))).pack(side="bottom", pady=20)
 
     def join_room_action(self):
         """Pay the entry fee and connect to the room; switch to the guess frame on success."""
@@ -67,7 +67,7 @@ class GuesserScreen(ctk.CTkFrame):
         
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)
-            self.feedback_label.configure(text="Guess sent! Waiting for Host...", text_color="orange")
+            self.feedback_label.configure(text="Waiting for Host...", font=("Arial", 14), text_color="blue")
         self.controller.loading_out.stop()
 
     def poll_for_feedback(self):
@@ -76,7 +76,7 @@ class GuesserScreen(ctk.CTkFrame):
         
         is_finished, result = self.controller.web3_service.get_game_result()
         if is_finished:
-            self.check_and_show_withdraw()
+            self.check_and_show_withdraw(result)
             return
 
         max_r = self.controller.web3_service.max_rounds
@@ -86,19 +86,22 @@ class GuesserScreen(ctk.CTkFrame):
 
         success, data = self.controller.web3_service.get_last_feedback_event()
         if success:
-            mapping = {0: "Equal!", 1: "Greater", 2: "Smaller"}
-            self.feedback_label.configure(text=f"Host says: {mapping.get(data['feedback'], '???')}", text_color="green")
+            mapping = {0: "EQUAL!", 1: "GREATER", 2: "SMALLER"}
+            self.feedback_label.configure(text=f"HOST SAYS: {mapping.get(data['feedback'], '???')}", font=("Arial", 14), text_color="cyan")
         
         self.after(5000, self.poll_for_feedback)
 
-    def check_and_show_withdraw(self):
-        """Check for a pending balance and display the win/lose result with a claim button if applicable."""
-        if self.controller.web3_service.get_pending_balance():
-            ctk.CTkButton(self.guess_frame, text="Claim Winnings", fg_color="gold", text_color="black", 
+    def check_and_show_withdraw(self, result):
+        """Compare the GameFinished winner address to own wallet to display win/lose result."""
+        my_addr = self.controller.web3_service.wallet_address
+        i_won = result.get("winner", "").lower() == my_addr.lower()
+        self.round_label.pack_forget()
+        if i_won:
+            self.feedback_label.configure(text="YOU WON!", font=("Arial", 20, "bold"), text_color="gold")
+            ctk.CTkButton(self.guess_frame, text="Claim Winnings", fg_color="gold", text_color="black",
                            command=self.withdraw_action).pack(pady=10)
-            self.feedback_label.configure(text="GAME OVER: YOU WON!", text_color="gold")
         else:
-            self.feedback_label.configure(text="GAME OVER: YOU LOST", text_color="gray")
+            self.feedback_label.configure(text="YOU LOST.", font=("Arial", 20, "bold"), text_color="red")
 
     def withdraw_action(self):
         """Call the contract's withdrawWinnings function to transfer the prize to the guesser's wallet."""
@@ -107,7 +110,9 @@ class GuesserScreen(ctk.CTkFrame):
         success, tx = self.controller.web3_service.withdraw_winnings()
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx)
-            self.status_label.configure(text="Winnings Claimed!")
+            self.controller.loading_out.stop()
+            self.controller.web3_service.reset_game_state()
+            self.controller.show_screen("MenuScreen")
         else:
             self.status_label.configure(text=f"Withdraw failed: {tx}", text_color="red")
-        self.controller.loading_out.stop()
+            self.controller.loading_out.stop()

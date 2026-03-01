@@ -46,7 +46,7 @@ class WalletScreen(ctk.CTkFrame):
             text="Back to Menu",
             fg_color="transparent",
             text_color="gray",
-            command=lambda: controller.show_screen("MenuScreen"),
+            command=lambda: (controller.web3_service.reset_game_state(), controller.show_screen("MenuScreen")),
         ).pack()
 
     def validate_inputs(self):

@@ -59,7 +59,7 @@ class HostScreen(ctk.CTkFrame):
         ctk.CTkButton(self.fb_btn_frame, text="Greater", width=80, fg_color="#3498DB", command=lambda: self.send_feedback(1)).pack(side="left", padx=5)
 
         ctk.CTkButton(self, text="Back to Menu", fg_color="transparent", text_color="gray",
-                       command=lambda: controller.show_screen("MenuScreen")).pack(side="bottom", pady=10)
+                       command=lambda: (controller.web3_service.reset_game_state(), controller.show_screen("MenuScreen"))).pack(side="bottom", pady=10)
 
     def update_fee_display(self, value):
         """Update the entry fee label when the user changes the round count."""
@@ -172,14 +172,17 @@ class HostScreen(ctk.CTkFrame):
             if receipt.status == 1:
                 self.reveal_btn.destroy()
                 self.secret_reveal_entry.destroy()
-                self.check_and_show_withdraw()
+                _, result = self.controller.web3_service.get_game_result()
+                self.check_and_show_withdraw(result)
             else:
                 self.status_label.configure(text="Reveal rejected (wrong secret?)", text_color="red")
         self.controller.loading_out.stop()
 
-    def check_and_show_withdraw(self):
-        """Check the contract for a pending balance and display win/lose result accordingly."""
-        if self.controller.web3_service.get_pending_balance():
+    def check_and_show_withdraw(self, result):
+        """Compare the GameFinished winner address to own wallet to display win/lose result."""
+        my_addr = self.controller.web3_service.wallet_address
+        i_won = result.get("winner", "").lower() == my_addr.lower()
+        if i_won:
             self.status_label.configure(text="YOU WON!", font=("Arial", 20, "bold"), text_color="gold")
             ctk.CTkButton(self.game_frame, text="Withdraw Winnings", fg_color="gold", text_color="black",
                            command=self.withdraw_action).pack(pady=10)
@@ -193,7 +196,9 @@ class HostScreen(ctk.CTkFrame):
         success, tx = self.controller.web3_service.withdraw_winnings()
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx)
-            self.status_label.configure(text="Winnings Claimed!")
+            self.controller.loading_out.stop()
+            self.controller.web3_service.reset_game_state()
+            self.controller.show_screen("MenuScreen")
         else:
             self.status_label.configure(text=f"Withdraw failed: {tx}", text_color="red")
-        self.controller.loading_out.stop()
+            self.controller.loading_out.stop()

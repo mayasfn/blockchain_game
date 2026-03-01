@@ -218,3 +218,9 @@ class Web3Service:
         except Exception as e:
             print(f"Error checking pending balance: {e}")
             return False
+
+    def reset_game_state(self):
+        """Clear all game-specific state after a game ends, ready for a new game."""
+        self.room = None
+        self.max_rounds = None
+        self.room_creation_block = None
