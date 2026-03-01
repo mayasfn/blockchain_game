@@ -25,6 +25,7 @@ class Web3Service:
         )
         
     def connect_wallet(self, wallet_address: str):
+        """Validate and store the wallet address in checksum format."""
         try:
             self.wallet_address = self.web3.to_checksum_address(wallet_address)
             return ""
@@ -32,10 +33,12 @@ class Web3Service:
             return "Problem with the wallet address"
 
     def get_balance_eth(self):
+        """Return the current ETH balance of the connected wallet."""
         balance = self.web3.eth.get_balance(self.wallet_address)
         return self.web3.from_wei(balance, "ether")
 
     def check_wallet_connection(self, private_key: str):
+        """Verify that the private key matches the stored wallet address and save it."""
         try:
             if not private_key.startswith('0x'):
                 private_key = '0x' + private_key
@@ -72,6 +75,7 @@ class Web3Service:
     # Player / Room functions
     # -----------------------------
     def create_room(self, secret_number: int, number_rounds: int = 3, entry_fee_eth: float = 0.1):
+        """Hash the secret, deploy a new room on-chain, and store the assigned room number."""
         secret_hash = keccak(encode(['uint256'], [secret_number]))
         value_in_wei = self.web3.to_wei(entry_fee_eth, "ether")
         
@@ -108,16 +112,19 @@ class Web3Service:
             return False, str(e)
 
     def set_guess(self, guess: int):
+        """Submit the guesser's number to the contract for the current round."""
         if self.room is None:
             return False, "No active room ID. Please join a room first."
         func = self.contract.functions.setUser2Guess(self.room, guess)
         return self.send_transaction(func)
 
     def set_feedback(self, feedback: int):
+        """Send the host's feedback (0=Equal, 1=Greater, 2=Smaller) to the contract."""
         func = self.contract.functions.setUser1Feedback(self.room, feedback)
         return self.send_transaction(func)
 
     def reveal_secret(self, secret: int):
+        """Send the plaintext secret so the contract can verify the host's hash and settle the game."""
         func = self.contract.functions.revealSecret(self.room, secret)
         return self.send_transaction(func)
 
@@ -138,6 +145,7 @@ class Web3Service:
             return False, None
 
     def get_feedback_count(self):
+        """Count how many FeedbackSent events exist for the current room (= rounds played so far)."""
         try:
             current_block = self.web3.eth.block_number
             events = self.contract.events.FeedbackSent().get_logs(from_block=current_block - 2000)
@@ -148,6 +156,7 @@ class Web3Service:
             return 0
 
     def check_guesser_joined(self):
+        """Return whether a guesser has joined the room by checking the guest_player address on-chain."""
         try:
             room_data = self.contract.functions.rooms(self.room).call()
             guesser = room_data[0]   # [0] = guess_player (guesser/User2)
@@ -159,6 +168,7 @@ class Web3Service:
             return False, None
 
     def get_last_feedback_event(self):
+        """Fetch the most recent FeedbackSent event for the current room to display to the guesser."""
         try:
             current_block = self.web3.eth.block_number
             start_block = current_block - 200

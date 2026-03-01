@@ -32,6 +32,7 @@ class GuesserScreen(ctk.CTkFrame):
         ctk.CTkButton(self, text="Back to Menu", command=lambda: controller.show_screen("MenuScreen")).pack(side="bottom", pady=20)
 
     def join_room_action(self):
+        """Pay the entry fee and connect to the room; switch to the guess frame on success."""
         room_id = self.room_entry.get()
         if not room_id.isdigit(): return
 
@@ -55,6 +56,7 @@ class GuesserScreen(ctk.CTkFrame):
         self.controller.loading_out.stop()
 
     def send_guess(self):
+        """Submit the guesser's number to the contract and wait for the host's feedback."""
         guess = self.guess_entry.get()
         if not guess.isdigit(): return
             
@@ -69,6 +71,7 @@ class GuesserScreen(ctk.CTkFrame):
         self.controller.loading_out.stop()
 
     def poll_for_feedback(self):
+        """Poll every 5 s for the host's latest feedback or for the game-finished event."""
         if self.controller.current_screen != self: return
         
         is_finished, result = self.controller.web3_service.get_game_result()
@@ -89,6 +92,7 @@ class GuesserScreen(ctk.CTkFrame):
         self.after(5000, self.poll_for_feedback)
 
     def check_and_show_withdraw(self):
+        """Check for a pending balance and display the win/lose result with a claim button if applicable."""
         if self.controller.web3_service.get_pending_balance():
             ctk.CTkButton(self.guess_frame, text="Claim Winnings", fg_color="gold", text_color="black", 
                            command=self.withdraw_action).pack(pady=10)
@@ -97,6 +101,7 @@ class GuesserScreen(ctk.CTkFrame):
             self.feedback_label.configure(text="GAME OVER: YOU LOST", text_color="gray")
 
     def withdraw_action(self):
+        """Call the contract's withdrawWinnings function to transfer the prize to the guesser's wallet."""
         self.controller.loading_out.start()
         self.update()
         success, tx = self.controller.web3_service.withdraw_winnings()

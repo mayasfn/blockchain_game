@@ -62,9 +62,11 @@ class HostScreen(ctk.CTkFrame):
                        command=lambda: controller.show_screen("MenuScreen")).pack(side="bottom", pady=10)
 
     def update_fee_display(self, value):
+        """Update the entry fee label when the user changes the round count."""
         self.fee_label.configure(text=f"Entry Fee: {self.fee_map[value]} ETH")
 
     def create_room_action(self):
+        """Read the secret + round count, call the contract to create a room and pay the entry fee."""
         secret = self.secret_entry.get()
         if not secret.isdigit(): return
         self.controller.loading_out.start()
@@ -85,19 +87,21 @@ class HostScreen(ctk.CTkFrame):
             
 
     def resume_room_action(self):
-        """Skip creation and jump to game state for a specific Room ID"""
+        """Skip room creation and rejoin an existing room by its ID (no new transaction)."""
         room_id = self.resume_entry.get()
         if not room_id.isdigit(): return
         self.controller.web3_service.room = int(room_id)
         self.show_game_ui(room_id)
 
     def show_game_ui(self, room_id):
+        """Switch from the setup frame to the in-game frame and begin polling."""
         self.room_label.configure(text=f"ROOM NUMBER: {room_id}")
         self.setup_frame.pack_forget()
         self.game_frame.pack(pady=20, fill="both", expand=True)
         self.start_polling()
 
     def start_polling(self):
+        """Poll the contract every 5 s to detect guesser join and incoming guesses."""
         if self.controller.current_screen != self or self._game_ended: return
 
         joined, guesser_addr = self.controller.web3_service.check_guesser_joined()
@@ -118,7 +122,7 @@ class HostScreen(ctk.CTkFrame):
         self.after(5000, self.start_polling)
  
     def send_feedback(self, feedback_type):
-        """Send feedback to smart contract, 0=Equal, 1=Greater, 2=Smaller"""
+        """Submit the host's feedback (0=Equal, 1=Greater, 2=Smaller) to the contract."""
         self.controller.loading_out.start()
         self.update()
         success, tx_hash = self.controller.web3_service.set_feedback(feedback_type)
@@ -129,6 +133,7 @@ class HostScreen(ctk.CTkFrame):
         self.controller.loading_out.stop()
 
     def check_game_end(self, last_feedback):
+        """After each feedback, decide whether the game is over (Equal guess or max rounds reached)."""
         try:
             room_data = self.controller.web3_service.contract.functions.rooms(self.controller.web3_service.room).call()
             max_rounds = room_data[MAX_ROUNDS_INDEX]
@@ -143,6 +148,7 @@ class HostScreen(ctk.CTkFrame):
             print(f"[check_game_end] error: {e}")
 
     def show_reveal_button(self):
+        """Hide the feedback buttons and show the secret reveal entry + button."""
         if hasattr(self, 'reveal_btn'): return
         self._game_ended = True
         self.round_label.pack_forget()
@@ -155,6 +161,7 @@ class HostScreen(ctk.CTkFrame):
         self.reveal_btn.pack(pady=10)
 
     def finish_game(self):
+        """Send the plaintext secret to the contract so it can verify the host was honest."""
         secret = self.secret_reveal_entry.get()
         if not secret.isdigit(): return
         self.controller.loading_out.start()
@@ -171,6 +178,7 @@ class HostScreen(ctk.CTkFrame):
         self.controller.loading_out.stop()
 
     def check_and_show_withdraw(self):
+        """Check the contract for a pending balance and display win/lose result accordingly."""
         if self.controller.web3_service.get_pending_balance():
             self.status_label.configure(text="YOU WON!", font=("Arial", 20, "bold"), text_color="gold")
             ctk.CTkButton(self.game_frame, text="Withdraw Winnings", fg_color="gold", text_color="black",
@@ -179,6 +187,7 @@ class HostScreen(ctk.CTkFrame):
             self.status_label.configure(text="YOU LOST.", font=("Arial", 20, "bold"), text_color="red")
 
     def withdraw_action(self):
+        """Call the contract's withdrawWinnings function to transfer the prize to the host's wallet."""
         self.controller.loading_out.start()
         self.update()
         success, tx = self.controller.web3_service.withdraw_winnings()
