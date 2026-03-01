@@ -4,6 +4,7 @@ from blockchain.config import RPC_URL, CONTRACT_ADDRESS, CONTRACT_ABI
 from eth_abi import encode
 from eth_utils import keccak
 
+PLAYER2_INDEX = 0
 EXISTS_INDEX = 5
 ENTRY_FEE_INDEX = 7
 MAX_ROUNDS_INDEX = 6
@@ -129,16 +130,17 @@ class Web3Service:
         return self.send_transaction(func)
 
     def get_current_round_guess(self):
-        """Used by the Host to see if the Guesser has moved yet."""
+        """Return the guess for the current round only, ignoring previous rounds."""
         try:
+            current_round = self.get_feedback_count() + 1  # 1-indexed, matches GuessSent event
             current_block = self.web3.eth.block_number
-            events = self.contract.events.GuessSent().get_logs(from_block=current_block - 100)
-            
-            relevant = [e for e in events if e.args.roomNumber == self.room]
-            
-            if not relevant: 
+            events = self.contract.events.GuessSent().get_logs(from_block=current_block - 2000)
+            relevant = [
+                e for e in events
+                if e.args.roomNumber == self.room and e.args.round == current_round
+            ]
+            if not relevant:
                 return False, None
-            
             return True, relevant[-1].args.guess
         except Exception as e:
             print(f"Polling error: {e}")
@@ -159,8 +161,7 @@ class Web3Service:
         """Return whether a guesser has joined the room by checking the guest_player address on-chain."""
         try:
             room_data = self.contract.functions.rooms(self.room).call()
-            guesser = room_data[0]   # [0] = guess_player (guesser/User2)
-            host    = room_data[1]   # [1] = feedback_player (host/User1)
+            guesser = room_data[PLAYER2_INDEX]  
             is_joined = guesser != "0x0000000000000000000000000000000000000000"
             return is_joined, guesser
         except Exception as e:

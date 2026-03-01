@@ -33,12 +33,8 @@ class WalletScreen(ctk.CTkFrame):
             text="Connect & Verify", 
             command=self.handle_connection,
             fg_color="gray",
-           # state="disabled"
         )
         self.connect_btn.pack(pady=20)
-
-        #self.wallet.bind("<KeyRelease>", lambda e: self.validate_inputs())
-        #self.key_entry.bind("<KeyRelease>", lambda e: self.validate_inputs())
         
         # Back to Menu
         ctk.CTkButton(

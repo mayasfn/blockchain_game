@@ -17,19 +17,19 @@ class GuesserScreen(ctk.CTkFrame):
         # --- GUESS FRAME ---
         self.guess_frame = ctk.CTkFrame(self, fg_color="transparent")
 
-        self.room_title = ctk.CTkLabel(self.guess_frame, text="ROOM: --", font=("Arial", 18, "bold"), text_color="green")
+        self.room_title = ctk.CTkLabel(self.guess_frame, text="ROOM NUMBER: --", font=("Arial", 18, "bold"), text_color="green")
         self.room_title.pack(pady=10)
         self.round_label = ctk.CTkLabel(self.guess_frame, text="", font=("Arial", 12), text_color="gray")
         self.round_label.pack()
         self.guess_entry = ctk.CTkEntry(self.guess_frame, placeholder_text="Your Guess", width=200)
         self.guess_entry.pack(pady=10)
         ctk.CTkButton(self.guess_frame, text="Send Guess", command=self.send_guess).pack(pady=10)
-        self.feedback_label = ctk.CTkLabel(self.guess_frame, text="Waiting for Host...", text_color="blue")
+        self.feedback_label = ctk.CTkLabel(self.guess_frame, text="", text_color="blue")
         self.feedback_label.pack(pady=10)
 
         self.status_label = ctk.CTkLabel(self, text="Status: Not Connected", text_color="gray")
         self.status_label.pack(side="bottom", pady=5)
-        ctk.CTkButton(self, text="Back to Menu", command=lambda: (controller.web3_service.reset_game_state(), controller.show_screen("MenuScreen"))).pack(side="bottom", pady=20)
+        ctk.CTkButton(self, text="Back to Menu", fg_color="transparent", text_color="gray",command=lambda: (controller.web3_service.reset_game_state(), controller.show_screen("MenuScreen"))).pack(side="bottom", pady=20)
 
     def join_room_action(self):
         """Pay the entry fee and connect to the room; switch to the guess frame on success."""
@@ -48,7 +48,7 @@ class GuesserScreen(ctk.CTkFrame):
             else:
                 self.join_frame.pack_forget()
                 self.guess_frame.pack(pady=20, fill="both")
-                self.room_title.configure(text=f"ROOM: {room_id}")
+                self.room_title.configure(text=f"ROOM NUMBER: {room_id}")
                 self.status_label.configure(text=f"Connected to Room #{room_id}", text_color="green")
                 self.poll_for_feedback()
         else:
@@ -59,15 +59,15 @@ class GuesserScreen(ctk.CTkFrame):
         """Submit the guesser's number to the contract and wait for the host's feedback."""
         guess = self.guess_entry.get()
         if not guess.isdigit(): return
-            
+
         self.controller.loading_out.start()
         self.update()
 
         success, tx_hash = self.controller.web3_service.set_guess(int(guess))
-        
+
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)
-            self.feedback_label.configure(text="Waiting for Host...", font=("Arial", 14), text_color="blue")
+            self.feedback_label.configure(text="HOST SAYS: ---", font=("Arial", 14), text_color="cyan")
         self.controller.loading_out.stop()
 
     def poll_for_feedback(self):

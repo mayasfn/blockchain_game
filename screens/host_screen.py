@@ -93,8 +93,20 @@ class HostScreen(ctk.CTkFrame):
         self.controller.web3_service.room = int(room_id)
         self.show_game_ui(room_id)
 
+    def _reset_for_new_game(self):
+        """Destroy any leftover widgets from a previous game and reset in-game state."""
+        self._game_ended = False
+        for attr in ("reveal_btn", "secret_reveal_entry", "claim_btn"):
+            if hasattr(self, attr):
+                getattr(self, attr).destroy()
+                delattr(self, attr)
+        self.fb_btn_frame.pack(pady=10)
+        self.round_label.pack()
+        self.status_label.configure(text="Waiting...", font=("Arial", 14), text_color="white")
+
     def show_game_ui(self, room_id):
         """Switch from the setup frame to the in-game frame and begin polling."""
+        self._reset_for_new_game()
         self.room_label.configure(text=f"ROOM NUMBER: {room_id}")
         self.setup_frame.pack_forget()
         self.game_frame.pack(pady=20, fill="both", expand=True)
@@ -113,11 +125,11 @@ class HostScreen(ctk.CTkFrame):
             self.round_label.configure(text=f"Round {fc + 1} / {max_r}")
 
         if success and guess_val is not None:
-            self.status_label.configure(text=f"GUESS RECEIVED: {guess_val}", text_color="cyan")
+            self.status_label.configure(text=f"GUESS RECEIVED: {guess_val}", font=("Arial", 14), text_color="cyan")
         elif joined:
-            self.status_label.configure(text="Guesser Joined! Waiting for guess...", text_color="green")
+            self.status_label.configure(text="GUESS RECEIVED: ---", font=("Arial", 14), text_color="cyan")
         else:
-            self.status_label.configure(text="Waiting for Guesser...", text_color="gray")
+            self.status_label.configure(text="Waiting for Guesser...", font=("Arial", 14), text_color="gray")
 
         self.after(5000, self.start_polling)
  
@@ -128,7 +140,7 @@ class HostScreen(ctk.CTkFrame):
         success, tx_hash = self.controller.web3_service.set_feedback(feedback_type)
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)
-            self.status_label.configure(text="Feedback confirmed!")
+            self.status_label.configure(text="GUESS RECEIVED: ---", font=("Arial", 14), text_color="cyan")
             self.check_game_end(feedback_type)
         self.controller.loading_out.stop()
 
@@ -171,12 +183,27 @@ class HostScreen(ctk.CTkFrame):
             receipt = self.controller.web3_service.web3.eth.wait_for_transaction_receipt(msg)
             if receipt.status == 1:
                 self.reveal_btn.destroy()
+                del self.reveal_btn
                 self.secret_reveal_entry.destroy()
+                del self.secret_reveal_entry
                 _, result = self.controller.web3_service.get_game_result()
-                self.check_and_show_withdraw(result)
+                if result is None:
+                    self.status_label.configure(text="Result pending, please wait...", text_color="orange")
+                    self.after(3000, self._retry_game_result)
+                else:
+                    self.check_and_show_withdraw(result)
             else:
                 self.status_label.configure(text="Reveal rejected (wrong secret?)", text_color="red")
         self.controller.loading_out.stop()
+
+    def _retry_game_result(self):
+        """Retry fetching the GameFinished event if it wasn't indexed immediately after reveal."""
+        _, result = self.controller.web3_service.get_game_result()
+        if result is None:
+            self.status_label.configure(text="Still waiting for result...", text_color="orange")
+            self.after(3000, self._retry_game_result)
+        else:
+            self.check_and_show_withdraw(result)
 
     def check_and_show_withdraw(self, result):
         """Compare the GameFinished winner address to own wallet to display win/lose result."""
@@ -184,8 +211,9 @@ class HostScreen(ctk.CTkFrame):
         i_won = result.get("winner", "").lower() == my_addr.lower()
         if i_won:
             self.status_label.configure(text="YOU WON!", font=("Arial", 20, "bold"), text_color="gold")
-            ctk.CTkButton(self.game_frame, text="Withdraw Winnings", fg_color="gold", text_color="black",
-                           command=self.withdraw_action).pack(pady=10)
+            self.claim_btn = ctk.CTkButton(self.game_frame, text="Claim Winnings", fg_color="gold", text_color="black",
+                           command=self.withdraw_action)
+            self.claim_btn.pack(pady=10)
         else:
             self.status_label.configure(text="YOU LOST.", font=("Arial", 20, "bold"), text_color="red")
 
