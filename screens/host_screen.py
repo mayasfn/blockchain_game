@@ -29,7 +29,7 @@ class HostScreen(ctk.CTkFrame):
         self.balance_label= ctk.CTkLabel(self.setup_frame, text="")
         self.balance_label.pack()
 
-        self.secret_entry = ctk.CTkEntry(self.setup_frame, placeholder_text="Secret (1-100)", width=200)
+        self.secret_entry = ctk.CTkEntry(self.setup_frame, placeholder_text="Enter secret number...", width=200)
         self.secret_entry.pack(pady=5)
 
         ctk.CTkButton(self.setup_frame, text="Create & Pay ETH", command=self.create_room_action).pack(pady=5)
@@ -175,31 +175,27 @@ class HostScreen(ctk.CTkFrame):
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)
             self.status_label.configure(text="Feedback sent. Waiting next guess...", text_color="cyan")
-            self.check_game_end(feedback_type)
+            if feedback_type == 0:
+                self._polling_active = False
+                self.fb_btn_frame.pack_forget()
+                self.show_reveal_button()
+            else:
+                self.check_game_end(feedback_type)
         else:
             self.status_label.configure(
                 text=f"Error: {tx_hash}",
                 text_color="red"
             )
         self.controller.loading_out.stop()
+
     def check_game_end(self, last_feedback):
         """After each feedback, decide whether the game is over (Equal guess or max rounds reached)."""
-        try:
-            room_data = self.controller.web3_service.contract.functions.rooms(self.controller.web3_service.room).call()
-            max_rounds = room_data[MAX_ROUNDS_INDEX]
-            current_count = self.controller.web3_service.get_feedback_count()  
-            all_rounds_done = current_count >= max_rounds
-            guesser_won = False
-            if last_feedback == 0:
-                success, current_guess = self.controller.web3_service.get_current_round_guess()
-                if success and current_guess is not None:
-                    guesser_won = True
+        max_rounds = self.controller.web3_service.max_rounds
+        current_count = self.controller.web3_service.get_feedback_count()
 
-            if guesser_won or all_rounds_done:
-                self.fb_btn_frame.pack_forget()
-                self.show_reveal_button()
-        except Exception as e:
-            print(f"[check_game_end] error: {e}")
+        if current_count >= max_rounds:
+            self.fb_btn_frame.pack_forget()
+            self.show_reveal_button()
 
     def show_reveal_button(self):
         """Hide the feedback buttons and show the secret reveal entry + button."""

@@ -116,6 +116,7 @@ class GuesserScreen(ctk.CTkFrame):
         is_finished, result = self.controller.web3_service.get_game_result()
         if is_finished:
             self.check_and_show_withdraw(result)
+            self._polling_active = False
             return
         
         fc = self.controller.web3_service.get_feedback_count()
@@ -141,10 +142,25 @@ class GuesserScreen(ctk.CTkFrame):
                     else:
                         self.send_guess_btn.configure(state="disabled", fg_color="gray")
 
-        success, data = self.controller.web3_service.get_last_feedback_event()        
+        success, data = self.controller.web3_service.get_last_feedback_event()
         if success:
             mapping = {0: "EQUAL!", 1: "GREATER", 2: "SMALLER"}
-            self.feedback_label.configure(text=f"HOST SAYS: {mapping.get(data['feedback'], '???')}",font=("Arial", 14), text_color="cyan")
+            fb_value = data["feedback"]
+
+            self.feedback_label.configure(
+                text=f"HOST SAYS: {mapping.get(fb_value, '???')}",
+                font=("Arial", 14),
+                text_color="cyan"
+            )
+            if fb_value == 0:
+                if hasattr(self, "send_guess_btn"):
+                    self.send_guess_btn.configure(state="disabled", fg_color="gray")
+
+                self.feedback_label.configure(
+                    text="🎯 HOST SAYS: EQUAL!\nWaiting for host to reveal...",
+                    font=("Arial", 14),
+                    text_color="green"
+                )
         if self._polling_active:
             self.after(5000, self.poll_for_feedback)
 
