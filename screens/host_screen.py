@@ -8,7 +8,6 @@ class HostScreen(ctk.CTkFrame):
         
         self.rounds_var = ctk.StringVar(value="3")
         self.fee_map = {"3": 0.01, "5": 0.02, "10": 0.05}
-        self._typed_secret = None
         self._game_ended = False
 
         # --- SETUP FRAME ---
@@ -78,13 +77,10 @@ class HostScreen(ctk.CTkFrame):
         )
         self.controller.loading_out.stop()
         if success:
-            self._typed_secret = secret
             self.show_game_ui(self.controller.web3_service.room)
         elif 'insufficient funds' in msg:
             balance = self.controller.web3_service.get_balance_eth()
             self.balance_label.configure(text=f"Insufficient balance: {balance}")
-            
-            
 
     def resume_room_action(self):
         """Skip room creation and rejoin an existing room by its ID (no new transaction)."""
@@ -102,7 +98,8 @@ class HostScreen(ctk.CTkFrame):
                 delattr(self, attr)
         self.fb_btn_frame.pack(pady=10)
         self.round_label.pack()
-        self.status_label.configure(text="Waiting...", font=("Arial", 14), text_color="white")
+        self.status_label.configure(text="Waiting...", text_color="white")
+        self.round_label.configure(text="")
 
     def show_game_ui(self, room_id):
         """Switch from the setup frame to the in-game frame and begin polling."""
@@ -132,26 +129,50 @@ class HostScreen(ctk.CTkFrame):
             self.status_label.configure(text="Waiting for Guesser...", font=("Arial", 14), text_color="gray")
 
         self.after(5000, self.start_polling)
- 
+
     def send_feedback(self, feedback_type):
         """Submit the host's feedback (0=Equal, 1=Greater, 2=Smaller) to the contract."""
+        success_guess, guess_val = self.controller.web3_service.get_current_round_guess()
+        if not success_guess or guess_val is None:
+            self.status_label.configure(
+                text="No guess received for this round.",
+                text_color="red"
+            )
+            return
+        current_feedback_count = self.controller.web3_service.get_feedback_count()
+        max_rounds = self.controller.web3_service.max_rounds
+
+        if current_feedback_count >= max_rounds:
+            self.status_label.configure(
+                text="All rounds already completed.",
+                text_color="red"
+            )
+            return
         self.controller.loading_out.start()
         self.update()
         success, tx_hash = self.controller.web3_service.set_feedback(feedback_type)
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)
-            self.status_label.configure(text="GUESS RECEIVED: ---", font=("Arial", 14), text_color="cyan")
+            self.status_label.configure(text="Feedback sent. Waiting next guess...", text_color="cyan")
             self.check_game_end(feedback_type)
+        else:
+            self.status_label.configure(
+                text=f"Error: {tx_hash}",
+                text_color="red"
+            )
         self.controller.loading_out.stop()
-
     def check_game_end(self, last_feedback):
         """After each feedback, decide whether the game is over (Equal guess or max rounds reached)."""
         try:
             room_data = self.controller.web3_service.contract.functions.rooms(self.controller.web3_service.room).call()
             max_rounds = room_data[MAX_ROUNDS_INDEX]
-            current_count = self.controller.web3_service.get_feedback_count()
+            current_count = self.controller.web3_service.get_feedback_count()  
             all_rounds_done = current_count >= max_rounds
-            guesser_won = last_feedback == 0  # Equal
+            guesser_won = False
+            if last_feedback == 0:
+                success, current_guess = self.controller.web3_service.get_current_round_guess()
+                if success and current_guess is not None:
+                    guesser_won = True
 
             if guesser_won or all_rounds_done:
                 self.fb_btn_frame.pack_forget()
@@ -166,8 +187,6 @@ class HostScreen(ctk.CTkFrame):
         self.round_label.pack_forget()
         self.status_label.configure(text="All rounds done! Reveal your secret.", text_color="white")
         self.secret_reveal_entry = ctk.CTkEntry(self.game_frame, placeholder_text="Your Secret Number", width=200)
-        if self._typed_secret:
-            self.secret_reveal_entry.insert(0, self._typed_secret)
         self.secret_reveal_entry.pack(pady=5)
         self.reveal_btn = ctk.CTkButton(self.game_frame, text="Reveal Secret", fg_color="green", command=self.finish_game)
         self.reveal_btn.pack(pady=10)
