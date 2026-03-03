@@ -153,7 +153,10 @@ class HostScreen(ctk.CTkFrame):
         max_r = self.controller.web3_service.max_rounds
         if max_r:
             fc = self.controller.web3_service.get_feedback_count()
-            self.round_label.configure(text=f"Round {fc + 1} / {max_r}")
+            if fc >= max_r:
+                self.round_label.configure(text=f"Round {max_r} / {max_r}")
+            else:
+                self.round_label.configure(text=f"Round {fc + 1} / {max_r}")
 
         if success and guess_val is not None:
             self.status_label.configure(text=f"GUESS RECEIVED: {guess_val}", font=("Arial", 14), text_color="cyan")

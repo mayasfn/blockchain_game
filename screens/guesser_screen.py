@@ -1,3 +1,5 @@
+from time import time
+
 import customtkinter as ctk
 
 class GuesserScreen(ctk.CTkFrame):
@@ -119,6 +121,11 @@ class GuesserScreen(ctk.CTkFrame):
             self._polling_active = False
             return
         
+        deadline = self.controller.web3_service.get_reveal_deadline()
+        current_time = int(time())
+        if deadline and current_time > deadline:
+            self.show_claim_timeout_button() 
+
         fc = self.controller.web3_service.get_feedback_count()
         gc = self.controller.web3_service.get_guess_count()
         max_r = self.controller.web3_service.max_rounds
@@ -218,3 +225,56 @@ class GuesserScreen(ctk.CTkFrame):
 
         self.guess_frame.pack_forget()
         self.join_frame.pack(pady=20, padx=20, fill="both")
+
+    def show_claim_timeout_button(self):
+        if hasattr(self, "timeout_btn"):
+            return
+
+        self.feedback_label.configure(
+            text="Host did not reveal in time.\nYou can claim timeout.",
+            text_color="orange"
+        )
+
+        self.timeout_btn = ctk.CTkButton(
+            self.guess_frame,
+            text="Claim Timeout",
+            fg_color="orange",
+            command=self.claim_timeout_action
+        )
+        self.timeout_btn.pack(pady=10)
+
+    def claim_timeout_action(self):
+        """Call the contract's claimTimeout function to claim victory if host missed the reveal deadline."""
+        self.controller.loading_out.start()
+        self.update()
+
+        success, tx = self.controller.web3_service.claim_timeout()
+
+        if success:
+            receipt = self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx)
+            if receipt.status == 1:
+                self.feedback_label.configure(
+                    text="Timeout claimed successfully!",
+                    text_color="gold"
+                )
+                self.reset_guesser_ui()
+                self.controller.web3_service.reset_game_state()
+                self.controller.show_screen("MenuScreen")
+            else:
+                self.feedback_label.configure(
+                    text="Timeout claim reverted.",
+                    text_color="red"
+                )
+        else:
+            if "Wait for deadline" in tx:
+                self.feedback_label.configure(
+                    text="Too soon to claim timeout.\nPlease wait for deadline.",
+                    text_color="orange"
+                )
+            else:
+                self.feedback_label.configure(
+                    text=f"Error: {tx}",
+                    text_color="red"
+                )
+
+        self.controller.loading_out.stop()

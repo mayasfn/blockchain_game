@@ -6,8 +6,9 @@ from eth_utils import keccak
 
 PLAYER2_INDEX = 0
 EXISTS_INDEX = 5
-ENTRY_FEE_INDEX = 7
 MAX_ROUNDS_INDEX = 6
+ENTRY_FEE_INDEX = 7
+REVEAL_DEADLINE_INDEX = 8
 
 class Web3Service:
     def __init__(self, rpc_url=RPC_URL):
@@ -249,3 +250,8 @@ class Web3Service:
         self.room = None
         self.max_rounds = None
         self.room_creation_block = None
+
+    def get_reveal_deadline(self):
+        """Return the reveal deadline for the current room."""
+        room_data = self.contract.functions.rooms(self.room).call()
+        return room_data[REVEAL_DEADLINE_INDEX]
