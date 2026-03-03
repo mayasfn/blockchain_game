@@ -23,7 +23,8 @@ class GuesserScreen(ctk.CTkFrame):
         self.round_label.pack()
         self.guess_entry = ctk.CTkEntry(self.guess_frame, placeholder_text="Your Guess", width=200)
         self.guess_entry.pack(pady=10)
-        ctk.CTkButton(self.guess_frame, text="Send Guess", command=self.send_guess).pack(pady=10)
+        self.send_guess_btn = ctk.CTkButton(self.guess_frame, text="Send Guess", command=self.send_guess)
+        self.send_guess_btn.pack(pady=10)
         self.feedback_label = ctk.CTkLabel(self.guess_frame, text="", text_color="blue")
         self.feedback_label.pack(pady=10)
 
@@ -33,6 +34,7 @@ class GuesserScreen(ctk.CTkFrame):
 
     def join_room_action(self):
         """Pay the entry fee and connect to the room; switch to the guess frame on success."""
+        self.reset_guesser_ui()
         room_id = self.room_entry.get()
         if not room_id.isdigit(): return
 
@@ -58,7 +60,17 @@ class GuesserScreen(ctk.CTkFrame):
     def send_guess(self):
         """Submit the guesser's number to the contract and wait for the host's feedback."""
         guess = self.guess_entry.get()
-        if not guess.isdigit(): return
+        if not guess.isdigit():
+            return
+
+        if self.send_guess_btn.cget("state") == "disabled":
+            self.feedback_label.configure(
+                text="Waiting for host feedback...",
+                text_color="red"
+            )
+            return
+
+        self.send_guess_btn.configure(state="disabled", fg_color="gray")
 
         self.controller.loading_out.start()
         self.update()
@@ -67,7 +79,14 @@ class GuesserScreen(ctk.CTkFrame):
 
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx_hash)
-            self.feedback_label.configure(text="HOST SAYS: ---", font=("Arial", 14), text_color="cyan")
+            self.feedback_label.configure(text="Guess sent. Waiting for host...", font=("Arial", 14), text_color="cyan")
+        else:
+            self.send_guess_btn.configure(state="normal", fg_color="blue")
+            self.feedback_label.configure(
+                text=f"Error: {tx_hash}",
+                text_color="red"
+            )
+
         self.controller.loading_out.stop()
 
     def poll_for_feedback(self):
@@ -79,16 +98,16 @@ class GuesserScreen(ctk.CTkFrame):
             self.check_and_show_withdraw(result)
             return
 
+        fc = self.controller.web3_service.get_feedback_count()
         max_r = self.controller.web3_service.max_rounds
         if max_r:
-            fc = self.controller.web3_service.get_feedback_count()
             self.round_label.configure(text=f"Round {fc + 1} / {max_r}")
 
-        success, data = self.controller.web3_service.get_last_feedback_event()
+        success, data = self.controller.web3_service.get_last_feedback_event()        
         if success:
             mapping = {0: "EQUAL!", 1: "GREATER", 2: "SMALLER"}
-            self.feedback_label.configure(text=f"HOST SAYS: {mapping.get(data['feedback'], '???')}", font=("Arial", 14), text_color="cyan")
-        
+            self.feedback_label.configure(text=f"HOST SAYS: {mapping.get(data['feedback'], '???')}",font=("Arial", 14), text_color="cyan")
+            self.send_guess_btn.configure(state="normal", fg_color="blue")
         self.after(5000, self.poll_for_feedback)
 
     def check_and_show_withdraw(self, result):
@@ -98,8 +117,14 @@ class GuesserScreen(ctk.CTkFrame):
         self.round_label.pack_forget()
         if i_won:
             self.feedback_label.configure(text="YOU WON!", font=("Arial", 20, "bold"), text_color="gold")
-            ctk.CTkButton(self.guess_frame, text="Claim Winnings", fg_color="gold", text_color="black",
-                           command=self.withdraw_action).pack(pady=10)
+            self.claim_btn_widget = ctk.CTkButton(
+                self.guess_frame, 
+                text="Claim Winnings", 
+                fg_color="gold", 
+                text_color="black",
+                command=self.withdraw_action
+            )
+            self.claim_btn_widget.pack(pady=10)
         else:
             self.feedback_label.configure(text="YOU LOST.", font=("Arial", 20, "bold"), text_color="red")
 
@@ -116,3 +141,11 @@ class GuesserScreen(ctk.CTkFrame):
         else:
             self.status_label.configure(text=f"Withdraw failed: {tx}", text_color="red")
             self.controller.loading_out.stop()
+
+    def reset_guesser_ui(self):
+        """Resets the UI for a fresh join attempt."""
+        self.feedback_label.configure(text="", font=("Arial", 14))
+        self.status_label.configure(text="Status: Not Connected", text_color="gray")
+        if hasattr(self, "claim_btn_widget"):
+            self.claim_btn_widget.destroy()
+            delattr(self, "claim_btn_widget")
