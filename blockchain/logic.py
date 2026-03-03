@@ -147,13 +147,25 @@ class Web3Service:
             return False, None
 
     def get_guess_count(self):
-        """Count how many GuessSent events exist for the current room (= rounds played so far)."""
+        """Count GuessSent events for current room."""
+        if not self.room:
+            return 0
+
         try:
             current_block = self.web3.eth.block_number
-            events = self.contract.events.GuessSent().get_logs(from_block=current_block - 2000)
+            from_block = getattr(self, "room_start_block", None)
+
+            if from_block is None:
+                from_block = max(0, current_block - 5000)
+            events = self.contract.events.GuessSent().get_logs(
+                from_block=from_block,
+                to_block=current_block
+            )
             relevant = [e for e in events if e.args.roomNumber == self.room]
             return len(relevant)
-        except:
+
+        except Exception as e:
+            print(f"[get_guess_count] Error: {e}")
             return 0
 
     def get_feedback_count(self):
@@ -231,9 +243,9 @@ class Web3Service:
             return False
 
     def reset_game_state(self):
-        """Clear all game-specific state after a game ends, ready for a new game."""
-        self.wallet_address = self.wallet_address
-        self.key = self.key
+        """Clear all game-specific state after a game ends, ready for a new game.
+        The connected wallet (self.wallet_address and self.key) is preserved; only
+        room-related fields are reset so a new game can be started with the same wallet."""
         self.room = None
         self.max_rounds = None
         self.room_creation_block = None

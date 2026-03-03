@@ -91,7 +91,19 @@ class HostScreen(ctk.CTkFrame):
         """Skip room creation and rejoin an existing room by its ID (no new transaction)."""
         room_id = self.resume_entry.get()
         if not room_id.isdigit(): return
-        self.controller.web3_service.room = int(room_id)
+        room_id = int(room_id)
+        self.controller.web3_service.room = room_id
+        try:
+            room_data = self.controller.web3_service.contract.functions.rooms(room_id).call()
+            max_rounds = room_data[MAX_ROUNDS_INDEX]
+
+            self.controller.web3_service.max_rounds = max_rounds
+        except Exception as e:
+            self.status_label.configure(
+                text=f"Failed to load room: {e}",
+                text_color="red"
+            )
+            return
         self.show_game_ui(room_id)
 
     def _reset_for_new_game(self):
@@ -232,7 +244,7 @@ class HostScreen(ctk.CTkFrame):
                 self.failed_reveal_attempts += 1
                 if self.failed_reveal_attempts >= 3:
                     self.status_label.configure(
-                        text="⚠ Multiple failed reveal attempts.\nIf secret is lost, guesser can claim timeout after 24h.",
+                        text="⚠ Multiple failed reveal attempts.\nIf secret is lost, guesser can claim timeout after 1h.",
                         text_color="orange"
                     )
                 else:

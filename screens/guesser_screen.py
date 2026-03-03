@@ -131,7 +131,7 @@ class GuesserScreen(ctk.CTkFrame):
                     delattr(self, "send_guess_btn")
 
                 self.feedback_label.configure(
-                    text="All rounds completed.\nWaiting for host to reveal...\nIf host fails, you can claim timeout after 24h.",
+                    text="All rounds completed.\nWaiting for host to reveal...\nIf host fails, you can claim timeout after 1h.",
                     text_color="orange"
                 )
             else:
