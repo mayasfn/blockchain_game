@@ -3,8 +3,9 @@ from web3 import Web3
 RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com'
 
 CONTRACT_ADDRESS = Web3.to_checksum_address(
-    "0x7CdEF7412c1d5d9A73CA4e96beB08F41c16969eF"
+    "0x2F5137B214a7E65f96191bcCe566D9D415794770"
 )
+
 
 CONTRACT_ABI = [
 	{
@@ -212,6 +213,67 @@ CONTRACT_ABI = [
 		"inputs": [
 			{
 				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "secret",
+				"type": "uint256"
+			}
+		],
+		"name": "revealSecret",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint8",
+				"name": "feedback",
+				"type": "uint8"
+			}
+		],
+		"name": "setUser1Feedback",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "roomNumber",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "guess",
+				"type": "uint256"
+			}
+		],
+		"name": "setUser2Guess",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "withdrawWinnings",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
 				"name": "_number",
 				"type": "uint256"
 			}
@@ -244,24 +306,6 @@ CONTRACT_ABI = [
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "roomNumber",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "secret",
-				"type": "uint256"
-			}
-		],
-		"name": "revealSecret",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -321,49 +365,6 @@ CONTRACT_ABI = [
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "roomNumber",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint8",
-				"name": "feedback",
-				"type": "uint8"
-			}
-		],
-		"name": "setUser1Feedback",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "roomNumber",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "guess",
-				"type": "uint256"
-			}
-		],
-		"name": "setUser2Guess",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "withdrawWinnings",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	}
 ]

@@ -50,6 +50,7 @@ contract GuessNumber {
 
     function createRoom(uint256 numberRounds, bytes32 _secretHash) external payable returns (uint256 roomNumber) {
         require(msg.value > 0, "Entry fee required"); // Optional: enforce a bet
+        require(numberRounds > 0 && numberRounds <= 15, "Invalid round limit");
         roomNumber = getRoomNumber();
 
         Room storage room = rooms[roomNumber];
@@ -76,8 +77,8 @@ contract GuessNumber {
             require(msg.sender != room.feedback_player, "You cannot play against yourself");
             room.guess_player = msg.sender;
             room.userCount = 2;
-            // Set a 24-hour deadline from the moment player 2 joins
-            room.revealDeadline = block.timestamp + 24 hours;
+            // Set a 1 hour deadline from the moment player 2 joins
+            room.revealDeadline = block.timestamp + 1 hours;
 
             emit UserConnected(roomNumber, msg.sender, 101);
             return 101;
@@ -102,8 +103,9 @@ contract GuessNumber {
         require(room.exists, "Room does not exist");
         require(msg.sender == room.guess_player, "Only guesser can play");
         require(room.guesses.length < room.maxRounds, "Max rounds reached");
+        
         require(room.feedbacks.length == 0 || room.feedbacks[room.feedbacks.length - 1] != 0, "Game already finished");
-
+        require(room.guesses.length == room.feedbacks.length, "Waiting for feedback");
         room.guesses.push(guess);
         emit GuessSent(roomNumber, guess, room.guesses.length);
     }
@@ -140,6 +142,7 @@ contract GuessNumber {
         require(room.feedbacks.length == room.guesses.length, "Missing feedback");
         require(msg.sender == room.feedback_player, "Only host can reveal");
         require(keccak256(abi.encodePacked(secret)) == room.secretHash, "Revealed secret does not match hash!");
+        require(block.timestamp <= room.revealDeadline, "Reveal period expired");
         bool user1Lied = false;
         bool user2Won = false;
     
