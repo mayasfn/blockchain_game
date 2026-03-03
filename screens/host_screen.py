@@ -5,10 +5,12 @@ class HostScreen(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, corner_radius=20)
         self.controller = controller
+        self._polling_active = False
         
         self.rounds_var = ctk.StringVar(value="3")
         self.fee_map = {"3": 0.01, "5": 0.02, "10": 0.05}
         self._game_ended = False
+        self.failed_reveal_attempts = 0
 
         # --- SETUP FRAME ---
         self.setup_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -58,7 +60,10 @@ class HostScreen(ctk.CTkFrame):
         ctk.CTkButton(self.fb_btn_frame, text="Greater", width=80, fg_color="#3498DB", command=lambda: self.send_feedback(1)).pack(side="left", padx=5)
 
         ctk.CTkButton(self, text="Back to Menu", fg_color="transparent", text_color="gray",
-                       command=lambda: (controller.web3_service.reset_game_state(), controller.show_screen("MenuScreen"))).pack(side="bottom", pady=10)
+                        command=lambda: (self._reset_for_new_game(),
+                        self.controller.web3_service.reset_game_state(),
+                        self.controller.show_screen("MenuScreen"))
+                    ).pack(side="bottom", pady=10)
 
     def update_fee_display(self, value):
         """Update the entry fee label when the user changes the round count."""
@@ -114,11 +119,21 @@ class HostScreen(ctk.CTkFrame):
         self.room_label.configure(text=f"ROOM NUMBER: {room_id}")
         self.setup_frame.pack_forget()
         self.game_frame.pack(pady=20, fill="both", expand=True)
+        self._polling_active = True
         self.start_polling()
 
     def start_polling(self):
         """Poll the contract every 5 s to detect guesser join and incoming guesses."""
-        if self.controller.current_screen != self or self._game_ended: return
+        if not self._polling_active or self.controller.current_screen != self or self._game_ended:
+            return
+
+        is_finished, result = self.controller.web3_service.get_game_result()
+        if is_finished and result:
+            self._game_ended = True
+            self._polling_active = False
+            self.fb_btn_frame.pack_forget()
+            self.check_and_show_withdraw(result)
+            return
 
         joined, guesser_addr = self.controller.web3_service.check_guesser_joined()
         success, guess_val = self.controller.web3_service.get_current_round_guess()
@@ -134,7 +149,6 @@ class HostScreen(ctk.CTkFrame):
             self.status_label.configure(text="GUESS RECEIVED: ---", font=("Arial", 14), text_color="cyan")
         else:
             self.status_label.configure(text="Waiting for Guesser...", font=("Arial", 14), text_color="gray")
-
         self.after(5000, self.start_polling)
 
     def send_feedback(self, feedback_type):
@@ -219,7 +233,17 @@ class HostScreen(ctk.CTkFrame):
                 else:
                     self.check_and_show_withdraw(result)
             else:
-                self.status_label.configure(text="Reveal rejected (wrong secret?)", text_color="red")
+                self.failed_reveal_attempts += 1
+                if self.failed_reveal_attempts >= 3:
+                    self.status_label.configure(
+                        text="⚠ Multiple failed reveal attempts.\nIf secret is lost, guesser can claim timeout after 24h.",
+                        text_color="orange"
+                    )
+                else:
+                    self.status_label.configure(
+                        text=f"Revealed secret does not match hash. Attempt {self.failed_reveal_attempts}/3",
+                        text_color="red"
+                    )
         self.controller.loading_out.stop()
 
     def _retry_game_result(self):
@@ -251,6 +275,7 @@ class HostScreen(ctk.CTkFrame):
         if success:
             self.controller.web3_service.web3.eth.wait_for_transaction_receipt(tx)
             self.controller.loading_out.stop()
+            self._reset_for_new_game()
             self.controller.web3_service.reset_game_state()
             self.controller.show_screen("MenuScreen")
         else:
