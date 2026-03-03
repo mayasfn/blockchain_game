@@ -23,5 +23,9 @@ class MenuScreen(ctk.CTkFrame):
             ).pack(pady=6)
 
     def on_button_click(self, destination):
-        self.controller.next_destination = destination
-        self.controller.show_screen("WalletScreen")
+        ws = self.controller.web3_service
+        if ws.wallet_address and ws.key:
+            self.controller.show_screen(destination)
+        else:
+            self.controller.next_destination = destination
+            self.controller.show_screen("WalletScreen")

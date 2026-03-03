@@ -146,6 +146,16 @@ class Web3Service:
             print(f"Polling error: {e}")
             return False, None
 
+    def get_guess_count(self):
+        """Count how many GuessSent events exist for the current room (= rounds played so far)."""
+        try:
+            current_block = self.web3.eth.block_number
+            events = self.contract.events.GuessSent().get_logs(from_block=current_block - 2000)
+            relevant = [e for e in events if e.args.roomNumber == self.room]
+            return len(relevant)
+        except:
+            return 0
+
     def get_feedback_count(self):
         """Count how many FeedbackSent events exist for the current room (= rounds played so far)."""
         try:
@@ -222,6 +232,8 @@ class Web3Service:
 
     def reset_game_state(self):
         """Clear all game-specific state after a game ends, ready for a new game."""
+        self.wallet_address = self.wallet_address
+        self.key = self.key
         self.room = None
         self.max_rounds = None
         self.room_creation_block = None

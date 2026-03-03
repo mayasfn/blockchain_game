@@ -90,16 +90,23 @@ class HostScreen(ctk.CTkFrame):
         self.show_game_ui(room_id)
 
     def _reset_for_new_game(self):
-        """Destroy any leftover widgets from a previous game and reset in-game state."""
+        """Fully reset UI and state so host can create a brand new room."""
         self._game_ended = False
+        self._polling_active = False
         for attr in ("reveal_btn", "secret_reveal_entry", "claim_btn"):
             if hasattr(self, attr):
                 getattr(self, attr).destroy()
                 delattr(self, attr)
-        self.fb_btn_frame.pack(pady=10)
-        self.round_label.pack()
+        self.failed_reveal_attempts = 0
         self.status_label.configure(text="Waiting...", text_color="white")
         self.round_label.configure(text="")
+        self.room_label.configure(text="ROOM: --")
+        self.secret_entry.delete(0, "end")
+        self.resume_entry.delete(0, "end")
+        self.game_frame.pack_forget()
+        self.setup_frame.pack(pady=10, padx=20, fill="both", expand=True)
+        self.fb_btn_frame.pack(pady=10)
+        self.round_label.pack()
 
     def show_game_ui(self, room_id):
         """Switch from the setup frame to the in-game frame and begin polling."""
